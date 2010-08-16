@@ -55,7 +55,7 @@ end
 
 # The cred's we need to talk to the jabber server
 jid      = "hostbot@bots.uahirise.org/#{hostname}#{dev_append}"
-password = 'S0m3Cr4zyLaz7P4ss'
+password = 'APassword'
 server   = 'jabs.uahirise.org'
 muc_jid  = "hostbots#{dev_append}@conference.uahirise.org"
 

@@ -30,7 +30,7 @@ if (old_pid)
 end
 # The cred's we need to talk to the jabber server
 jid      = "muppetbot@bots.uahirise.org/pastor-#{hostname}#{dev_append}"
-password = 'S0m3Cr4z13rLaz7P4ss'
+password = 'AnotherPassword'
 server   = 'jabs.uahirise.org'
 muc_jid  = "hostbots#{dev_append}@conference.uahirise.org"
 

@@ -1,0 +1,53 @@
+= Host Bot =
+
+.. about
+.| installation
+|. history
+|| credit
+
+=== .. ===
+
+  Host Bot is an XMPP bot meant to be run on a host. The bot is easy to
+  extend if you know some ruby. There are many ulling working example
+  commands as part of the base bot. Adding your own commands can be done
+  by pattern matching an existing command to create your own. The basic
+  commands are generally commands that can be run on may different hosts
+  at the same time and then compared to know something about the state
+  of a system. For a detailed description of commands look into the file
+  named "doc/COMMANDS"
+
+=== .| ===
+
+  You need the xmpp4r module installed before hostbot will run. xmpp4r is
+  is also free and maintained. Once done you can usually just do the usual
+
+  # ruby setup.rb
+
+  OR
+
+  % ruby setup.rb all --prefix=$HOME
+
+  A script must be used to invoke the hostbot module and good example
+  scripts are installed by default named configbot.rb and muppetbot.rb.
+  Feel free to use this as a starting point for your own functionality and
+  realize that many of muppetbot.rb's features are specific to being a
+  master puppet bot. See also "docs/BOTS" for more info
+
+=== |. ===
+
+  Many other bots were born, raised and eventually slaughtered in the making
+  of this bot. This code base is meant to be stable and simple to extend
+  while still being powerful enough to accomplish complicated things. I
+  expect a few changes as people say, "why in the world did you X instead of
+  Y" and I can't give a good reason to stay with X or at least not go to X.
+
+=== || ===
+
+  Tim Spriggs started writing the code and got the idea prototyped and
+  proven across many systems. As the bot grew and certain ideas were
+  explored, Kenny Fine started to collaborate and develop code and as
+  ideas and code started bouncing back and forth the design went through
+  some very good but large changes to where it is now. Of course a huge
+  round of thanks goes to the HiRISE System's group in general and the
+  HiRISE project without whom this bot would not exist.
+
