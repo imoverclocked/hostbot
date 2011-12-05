@@ -1,30 +1,53 @@
 #!/usr/bin/env ruby
 
-## Enable the next line for debugging and run this from the "lib" directory
-DEBUG_BOT = false
+require ('optparse')
 
-if DEBUG_BOT
-  $:.insert(0, ".")
-  $:.insert(0, "lib")
-  $:.insert(0, "../lib")
-  dev_append = "-dev"
-  print "Running as a develoment bot...\n"
-else
-  dev_append = ""
+options = {}
+
+optparse = OptionParser.new do|opts|
+  opts.banner = "Usage: configbot [options]"
+  options[:config] = '/etc/configbot/conf/main.yaml'
+  opts.on( '-c', '--config', 'configuration file' ) do|file|
+    options[:config] = file
+  end
+  options[:debug] = false
+  opts.on( '-d', '--debug', 'debug mode' ) do
+    options[:debug] = true
+  end
+  opts.on( '-h', '--help', 'Display this screen' ) do
+    puts opts
+    exit
+  end
 end
+optparse.parse!
+
+require ('yaml')
+yml = YAML.load_file( options[:config] )
+if options[:debug] or (yml['debug'] == true)
+  auth = yml['auth_debug']
+  puts 'Using auth_debug credentials.'
+  options[:debug] = true
+else
+  auth = yml['auth']
+end
+
+if options[:debug]
+  # Assume we are running the bot as one of:
+  #   ../bin/configbot.rb -d
+  $:.insert(0, ".")
+  #   ./bin/configbot.rb -d
+  $:.insert(0, "lib")
+  #   ./configbot.rb -d
+  $:.insert(0, "../lib")
+  print "Running as a develoment bot...\n"
+end
+
 require 'configbot/bghandler'
 require 'configbot/confighandler'
 require 'configbot/configbot_commands'
-hostname = `/bin/hostname`
-hostname = hostname.downcase.chomp()
-if hostname.match(/\./)
-  hostname = hostname.split(".")[0]
-end
 
-pidfile = "/var/run/configbot#{dev_append}.pid"
-
-if (File.exist?(pidfile))
-  pf = File.open(pidfile, "r")
+if (File.exist?(auth['pidfile']))
+  pf = File.open(auth['pidfile'], "r")
   old_pid = pf.readline
   old_pid.strip!
   old_pid= Integer(old_pid)
@@ -41,12 +64,12 @@ if (old_pid)
 end
 
 # Now let's write the pid of the watching process
-pf = File.open(pidfile, "w")
+pf = File.open(auth['pidfile'], "w")
 pf.puts($$)
 pf.close
 
-if (File.exist?(pidfile))
-  pf = File.open(pidfile, "r")
+if (File.exist?(auth['pidfile']))
+  pf = File.open(auth['pidfile'], "r")
   old_pid = pf.readline
   old_pid.strip!
   old_pid =Integer(old_pid)
@@ -58,15 +81,20 @@ end
 
 ### Let the children do what they do best ###
 
-# The cred's we need to talk to the jabber server
-if DEBUG_BOT
-  jid      = "hostbot@bots.uahirise.org/dev-#{hostname}"
+# Set resource appropriately
+if auth['resource'] == 'hostname'
+  resource = `/bin/hostname`
+  resource = resource.downcase.chomp()
+  if resource.match(/\./)
+    resource = resource.split(".")[0]
+  end
 else
-  jid      = "hostbot@bots.uahirise.org/#{hostname}"
+  resource = auth['resource']
 end
-password = 'APassword'
-server   = 'jabs.uahirise.org'
-muc_jid  = "hostbots#{dev_append}@conference.uahirise.org"
+
+# The cred's we need to talk to the jabber server
+jid      = "#{auth['jid']}/#{resource}"
+puts jid
 module HiBot
   class ConfigHandler < HiBot::BotHandler
     def newSession( jid, muc )
@@ -75,8 +103,6 @@ module HiBot
         session.newRS(HiBot::CommandResponseHandler)
       elsif jid.strip == @auth_info[:admin_muc_jid]
         session.newRS(HiBot::MUCResponseHandler)
-      # elsif jid.strip == @auth_info[:admin_muc_jid]
-        # session.newRS(HiBot::CommandResponseHandler)
       end
       return session
     end
@@ -84,7 +110,12 @@ module HiBot
 end
 
 # How do we act on incoming messages?
-msg_handler = HiBot::ConfigHandler.new( jid, password, server, muc_jid )
+msg_handler = HiBot::ConfigHandler.new(
+  jid,
+  auth['password'],
+  auth['server'],
+  auth['primary_muc_jid']
+  )
 msg_handler.on_exception{begin; msg_handler.cleanup; rescue Exception => e; puts "Whoa, There was an error: #{e.message}"; ensure; Process.exit; end}
 
 class LoadWatch < BGHandler::CronHandler
@@ -101,15 +132,14 @@ class LoadWatch < BGHandler::CronHandler
   end
 end
 
-if DEBUG_BOT
+if options[:debug]
 
-  muc_session = msg_handler.getSession( muc_jid )
-  muc_session = msg_handler.getSession( "#{muc_jid}/tim" )
+  muc_session = msg_handler.getSession( auth['primary_muc_jid'] )
+  muc_session = msg_handler.getSession( "#{auth['primary_muc_jid']}/tim" )
 
   print "running load watcher ... \n"
   # Test the load watching abilities of the bot
   load_watcher = LoadWatch.new( delayTime=60, session=muc_session )
-
   print "done setting up watches... \n"
 
 end
@@ -118,14 +148,14 @@ end
 begin
   Thread.stop
 ensure
-  if (File.exist?(pidfile))
-    pf = File.open(pidfile, "r")
+  if (File.exist?(auth['pidfile']))
+    pf = File.open(auth['pidfile'], "r")
     old_pid = pf.readline
     old_pid.strip!
     old_pid = Integer(old_pid)
     pf.close
     if old_pid == $$
-      File.delete(pidfile)
+      File.delete(auth['pidfile'])
     end
   end
 end
