@@ -311,6 +311,22 @@ EOD
     self.handlePrivately = false
     CommandList.addCommandClass( WhereisCommand )
 
+    def absolute_path(resource)
+      return unless resource =~ /^\//
+      if File.exists?(resource)
+	case
+	when File.symlink?(resource)
+          say( "I have that symlink" )
+	when File.directory?(resource)
+          say( "I have that directory" )
+	when File.file?(resource)
+          say( "I have that file" )
+	else
+          say( "I have that path" )
+	end
+      end
+    end
+
     def users(resource)
       who_list = `who`.split("\n")
       return if $? != 0
@@ -395,6 +411,7 @@ EOD
       resource.shift # Get rid of command
       resource = resource.join(" ")
       # Look for each kind of resource.
+      absolute_path( resource )
       users( resource )
       mounts( resource )
       xen_domains( resource )
