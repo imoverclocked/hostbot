@@ -1,0 +1,4 @@
+main.yaml -- /etc/configbot/conf/main.yaml
+  This is the main configuration file and stores the very
+  basic configuration for a hostbot to authenticate to an
+  xmpp/jabber server.

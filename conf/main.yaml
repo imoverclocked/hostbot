@@ -1,0 +1,15 @@
+auth:
+ jid: hostbot@example.org
+ password: APassword
+ resource: hostname
+ server: jabber.example.org
+ pidfile: /var/run/hostbot.pid
+ primary_muc_jid: hostbots@conference.example.org
+auth_debug:
+ jid: hostbot@bots.example.org
+ password: APassword
+ resource: dev-client
+ server: jabber.example.org
+ pidfile: /var/run/configbot-dev.pid
+ primary_muc_jid: hostbots-dev@conference.example.org
+debug: false
