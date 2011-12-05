@@ -18,7 +18,6 @@ module BGHandler
       @delayTime = delayTime
       @repeat = repeat
       @session = session
-      print "SESSION: #{@session}"
       @runTimeO = runTimeO
       @sched_thread = Thread.new { self.schedule() }
     end
@@ -31,10 +30,8 @@ module BGHandler
     end
 
     def schedule()
-      print "repeating #{@repeat} times ... "
       while @repeat >= 0:
         @repeat -= 1
-         print "repeat #{@repeat} more times ... "
         sleep( self.delayTime )
 	@thread = Thread.new { self.safe_run() }
 	@thread.join( self.delayTime )

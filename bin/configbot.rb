@@ -1,8 +1,12 @@
 #!/usr/bin/env ruby
 
 ## Enable the next line for debugging and run this from the "lib" directory
-if false
+DEBUG_BOT = false
+
+if DEBUG_BOT
   $:.insert(0, ".")
+  $:.insert(0, "lib")
+  $:.insert(0, "../lib")
   dev_append = "-dev"
   print "Running as a develoment bot...\n"
 else
@@ -12,53 +16,57 @@ require 'configbot/bghandler'
 require 'configbot/confighandler'
 require 'configbot/configbot_commands'
 hostname = `/bin/hostname`
-hostname = hostname.chomp()
+hostname = hostname.downcase.chomp()
+if hostname.match(/\./)
+  hostname = hostname.split(".")[0]
+end
 
 pidfile = "/var/run/configbot#{dev_append}.pid"
 
 if (File.exist?(pidfile))
   pf = File.open(pidfile, "r")
   old_pid = pf.readline
+  old_pid.strip!
+  old_pid= Integer(old_pid)
   pf.close
 end
 if (old_pid)
   pn = `ps -p #{old_pid}`
   if (pn.include?("conf") or pn.include?("ruby"))
-    `kill #{old_pid};sleep 1`
+    pgid = `ps -p #{old_pid} -o pgid | tail -1`
+    pgid.strip!
+    `kill -15 -#{pgid}`
+    `sleep 1`
   end
 end
-
-# First, let's daemonize
-pid = fork
-if pid
-  Process.detach(pid)
-  Process.exit(0)
-end
-Signal.trap('HUP', 'IGNORE')
 
 # Now let's write the pid of the watching process
 pf = File.open(pidfile, "w")
 pf.puts($$)
 pf.close
 
-# Ok, now let's watch our children...
-begin
-  while pid = fork
-    Process.wait( pid )
+if (File.exist?(pidfile))
+  pf = File.open(pidfile, "r")
+  old_pid = pf.readline
+  old_pid.strip!
+  old_pid =Integer(old_pid)
+  pf.close
+  if old_pid != $$
+    Process.exit(0)
   end
-rescue Exception=>e
-  Process.kill('INT', pid)
-  Process.exit(0)
 end
 
 ### Let the children do what they do best ###
 
 # The cred's we need to talk to the jabber server
-jid      = "hostbot@bots.uahirise.org/#{hostname}#{dev_append}"
+if DEBUG_BOT
+  jid      = "hostbot@bots.uahirise.org/dev-#{hostname}"
+else
+  jid      = "hostbot@bots.uahirise.org/#{hostname}"
+end
 password = 'APassword'
 server   = 'jabs.uahirise.org'
 muc_jid  = "hostbots#{dev_append}@conference.uahirise.org"
-
 module HiBot
   class ConfigHandler < HiBot::BotHandler
     def newSession( jid, muc )
@@ -93,14 +101,32 @@ class LoadWatch < BGHandler::CronHandler
   end
 end
 
-# muc_session = msg_handler.getSession( muc_jid )
-# muc_session = msg_handler.getSession( "#{muc_jid}/tim" )
-# load = LoadWatch.new( delayTime=60, session=muc_session )
+if DEBUG_BOT
+
+  muc_session = msg_handler.getSession( muc_jid )
+  muc_session = msg_handler.getSession( "#{muc_jid}/tim" )
+
+  print "running load watcher ... \n"
+  # Test the load watching abilities of the bot
+  load_watcher = LoadWatch.new( delayTime=60, session=muc_session )
+
+  print "done setting up watches... \n"
+
+end
 
 # Stop the main thread and just process events
 begin
   Thread.stop
 ensure
-  File.delete(pidfile)
+  if (File.exist?(pidfile))
+    pf = File.open(pidfile, "r")
+    old_pid = pf.readline
+    old_pid.strip!
+    old_pid = Integer(old_pid)
+    pf.close
+    if old_pid == $$
+      File.delete(pidfile)
+    end
+  end
 end
 

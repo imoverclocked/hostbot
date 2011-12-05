@@ -10,6 +10,7 @@ require 'xmpp4r/bytestreams'
 require 'xmpp4r/caps'
 require 'xmpp4r/muc'
 require 'xmpp4r/roster'
+require 'xmpp4r/discovery'
 
 require 'configbot/bghandler'
 
@@ -18,7 +19,7 @@ require 'configbot/bghandler'
 
 module HiBot
 
-  @@CONFIGBOT_VERSION = "0.0.9"
+  @@CONFIGBOT_VERSION = "0.0.14"
   def self.CONFIGBOT_VERSION; @@CONFIGBOT_VERSION; end
 
   # Given a connection to a jabber server, handle messages as they come in
@@ -99,7 +100,6 @@ module HiBot
       # define simple callbacks to handle messages
       muc.on_private_message do |time,nick,text|
         priv_session = getSession( "#{muc_prefix}/#{nick}", muc )
-        priv_session.user_role = muc.role( nick )
         priv_session.handle( text )
       end
 
@@ -155,11 +155,32 @@ module HiBot
       add_cap('http://jabber.org/protocol/caps')
       add_cap('http://jabber.org/protocol/disco#info')
       add_cap('http://jabber.org/protocol/disco#items')
-    end
-    def add_cap(url)
-      @helpers[:caps].features << Jabber::Discovery::Feature.new( url )
+      add_cap('http://jabber.org/protocol/disco#items')
+      add_cap('http://jabber.org/protocol/disco#items')
+      add_check_cap()
     end
 
+    def add_check_cap()
+      add_cap('http://jabber.org/protocol/disco#items')
+      check_dirs = Dir.glob("/etc/configbot/**/")
+      check_dirs.each{ |check|
+        check.slice!("/etc/configbot/")
+        if (check != "")
+          add_cap("http://uahirise.org/configbot/#{check}")
+        end
+      }
+    end
+
+    def add_cap(url)
+      feature = Jabber::Discovery::Feature.new(url)
+      if (!@helpers[:caps].features.include?(feature))
+        @helpers[:caps].features << Jabber::Discovery::Feature.new( url )
+      end
+    end
+    def del_cap(url)
+      feature = Jabber::Discovery::Feature.new(url)
+      @helpers[:caps].features.delete(feature)
+    end
     def init_chat_state()
       # http://xmpp.org/extensions/xep-0085.html
       # add_cap( 'http://jabber.org/protocol/chatstates' )
@@ -184,13 +205,19 @@ module HiBot
       @helpers[:files] = FileHandler.new( self )
       @helpers[:files].add_incoming_callback { |iq,file|
         from = Jabber::JID.new(iq.from)
-        session = getSession( from )
+        muc = @mucs[ from.strip ]
+        session = getSession( from, muc )
         # Call session.incomingFile which then calls back incomingFile
         # if it will allow the file transfer. If it doesn't allow transfers
         # then it will simply return false
-    if ! session.incomingFile( iq, file, @helpers[:files] )
-          @helpers[:files].decline( iq )
-        end
+	begin
+          if ! session.incomingFile( iq, file, @helpers[:files] )
+            session.say("can not implement the file transfer")
+            @helpers[:files].decline( iq )
+          end
+	rescue Exception=>e
+	  @helpers[:files].decline( iq )
+	end
       }
       add_cap( 'http://jabber.org/protocol/bytestreams' )
       # TODO: see if UDP is supported here?
@@ -242,10 +269,17 @@ module HiBot
 
     def init_presence()
       Thread.new {
+	# delay sending a presence notification for at least 45 minutes
+        delay = 60*45
+	# delay should be slightly random so that status updates are staggered
+	delay = delay + rand(60*30)
+	# In the case that all bots are started at once, send a status update
+	# randomly over a 60 second interval
+	sleep( rand( 300 ) )
         while true do
           presence = Jabber::Presence.new( :chat, @status_text, 1 )
           self.send( presence )
-          sleep( 90 )
+          sleep( delay )
         end
       }
     end
@@ -255,7 +289,7 @@ module HiBot
       # Allow each session to handle their own messages
       add_message_callback do |m|
         session = getSession( m.from )
-        if m.type != :error
+        if m.type != :error and m.body != nil
           session.handle(m.body)
         else
           puts m
@@ -313,14 +347,10 @@ module HiBot
         session = SessionHandler.new( self, jid )
       else
         session = MUCSessionHandler.new( self, jid, muc )
+        session.user_role = muc.role( jid.resource )
       end
       # TODO: decorate session appropriately
       return session
-    end
-
-    def incomingFile( iq, file, session, attrs = {} )
-      session.say( "TODO: deal with incoming transfers" )
-      @helpers[:files].decline( iq )
     end
 
   end
@@ -424,8 +454,17 @@ module HiBot
       @sess.say(text)
     end
 
+    def show_criteria
+      verb=""
+      @acl_criteria.each_key { |k| verb+="\n#{k}: #{@acl_criteria[k]}" }
+      say("Criteria: (#{self}) #{verb}")
+    end
+
+    def user_role
+      @acl_criteria[:user_role]
+    end
     def user_role=(value)
-      @acl_criteria[ :user_role ] = value
+      @acl_criteria[:user_role] = value
     end
 
     # Returns true if a message should be handled privately (WRT MUC)
@@ -444,40 +483,58 @@ module HiBot
     end
 
     def incoming_file(iq, file)
-      Thread.new begin
-        puts "accepting file from #{iq.from} (#{file.fname})"
-        bs = accept(iq)
-        if bs == nil
-          say("Could not get a valid byte stream", JID.new(iq.from).resource)
-          return
-        end
-
-        if bs.kind_of?(Jabber::Bytestreams::SOCKS5Bytestreams)
-          bs.connect_timeout = 10
-          bs.add_streamhost_callback { |streamhost,state,e|
-            case state
-              when :connecting
-                puts "Connecting to #{streamhost.jid} (#{streamhost.host}:#{streamhost.port})"
-              when :success
-                puts "Successfully using #{streamhost.jid} (#{streamhost.host}:#{streamhost.port})"
-              when :failure
-                puts "Error using #{streamhost.jid} (#{streamhost.host}:#{streamhost.port}): #{e}"
-            end
-          }
-        end
-
-        if ! bs.accept
-          say("Byte stream failed to accept", JID.new(iq.from).resource)
-          # Last-ditch effort to tell the client to give up
-          decline(iq)
-          return
-        end
-
-        while buf = bs.read() != nil
-          puts ". #{buf}"
-        end
-        bs.close
+      muc = @client.mucs[ iq.from.strip ]
+      session = @client.getSession( iq.from, muc )
+      puts "accepting file from #{iq.from} (#{file.fname})"
+      bs = accept(iq)
+      if bs == nil
+        session.say("Could not get a valid byte stream")
+        return
       end
+
+      if bs.kind_of?(Jabber::Bytestreams::SOCKS5Bytestreams)
+        bs.connect_timeout = 15
+        bs.add_streamhost_callback { |streamhost,state,e|
+          case state
+            when :connecting
+              puts "Connecting to #{streamhost.jid} (#{streamhost.host}:#{streamhost.port})"
+            when :success
+              puts "Successfully using #{streamhost.jid} (#{streamhost.host}:#{streamhost.port})"
+            when :failure
+              puts "Error using #{streamhost.jid} (#{streamhost.host}:#{streamhost.port}): #{e}"
+          end
+        }
+      end
+
+      if ! bs.accept
+        session.say("Byte stream failed to accept")
+        # Last-ditch effort to tell the client to give up
+        decline(iq)
+        return false
+      end
+
+      buf = nil
+      fname = file.fname.split(/\//).pop
+      f = File.new("/tmp/#{fname}", File::CREAT|File::TRUNC|File::RDWR, 0644)
+      size=0
+      while true do
+        if bs.kind_of?(Jabber::Bytestreams::IBBTarget)
+          Timeout::timeout(120) { buf = bs.read }
+        else
+          Timeout::timeout(90) { buf = bs.read(32768) }
+        end
+        break if buf == nil
+        f.write(buf)
+        size+=buf.size
+      end
+      if size != file.size
+        session.say("only received #{size}/#{file.size} bytes (#{file.fname})")
+        f.unlink
+      else
+        session.say("Received file #{file.fname} (#{size}/#{file.size} bytes)")
+      end
+      f.close
+      bs.close
     end
 
   end
@@ -486,11 +543,13 @@ module HiBot
   class SessionHandler
     attr_reader :client
     attr_reader :target_jid
+    attr_reader :discovery
     # alias :real_extend :extend
     # hash of nicks that we don't ignore
 
     def initialize(client, target_jid)
       @client = client
+      @discovery = Jabber::Discovery::Helper.new(@client)
       @target_jid = target_jid
       @resp = ResponseHandler.new( @client, self )
     end
@@ -501,6 +560,15 @@ module HiBot
 
     def cleanup( text )
       @resp.cleanup( text )
+    end
+
+    def get_features_for(jid)
+      begin
+        features=@discovery.get_info_for(jid).features
+      rescue Exception => e
+        features = Array.new
+      end
+      return features
     end
 
     def say(text, mesg_type = :chat)
@@ -517,12 +585,24 @@ module HiBot
       roster = @client.helpers[:roster]
       roster.items.keys
     end
+    def user_role
+      @resp.user_role
+    end
     def user_role=( value )
-      @resp.user_role = value
+      @resp.user_role= value
+    end
+
+    def incomingFile( iq, file, file_helper )
+      return @resp.incomingFile( iq, file, file_helper )
     end
 
     def newRS( someClass )
+      old_role = user_role()
       @resp = someClass.new( @client, self )
+      if old_role
+        @resp.user_role = old_role
+        # say( "new response handler, old role: #{old_role}" )
+      end
     end
   end
 

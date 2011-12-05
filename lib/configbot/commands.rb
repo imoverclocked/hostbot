@@ -3,6 +3,7 @@
 #
 
 require 'configbot/acl.rb'
+require 'configbot/groups.rb'
 
 module BotCommands
 
@@ -14,6 +15,9 @@ module BotCommands
     # accessor methods
     def self.commands; @@commands; end
     def self.commandsByName; @@commandsByName; end
+
+    # Return a command class to help handle incoming connections
+    def self.incomingFile; BotCommands::IncomingFile; end
 
     # replaces previously known commands with later defined commands
     def self.addCommandClass( newClass )
@@ -157,7 +161,7 @@ module BotCommands
 
   class BotKillCommand < Command
     self.command_name = 'bkill'
-    self.acl = BotCommands.admin_acl
+    self.acl = BotCommands.private_acl
     self.short_desc = 'kill a bot process'
     self.help_text = 'bkill [-no-destroy] <id> - attempts to stop a bot process with the specified id'
     CommandList.addCommandClass( BotKillCommand )
@@ -181,7 +185,7 @@ module BotCommands
 
   class BotPSCommand < Command
     self.command_name = 'bps'
-    self.acl = BotCommands.any_acl
+    self.acl = BotCommands.private_acl
     self.short_desc = 'internal bot process listing'
     self.help_text = 'bps - lists running bot processes'
     CommandList.addCommandClass( BotPSCommand )
@@ -194,6 +198,45 @@ module BotCommands
     end
   end
 
+  class BotShowCommand < Command
+    self.command_name = 'bshow'
+    self.acl = BotCommands.private_acl
+    self.short_desc = 'show bot internals'
+    self.help_text = 'bshow <resource> - shows value of <resource> (session criteria)'
+    CommandList.addCommandClass( BotShowCommand )
+
+    def show_session(keywords)
+      if keywords.length == 0
+        show_session(Array['criteria'])
+        show_session(Array['list'])
+      end
+      primary_keyword = keywords.shift
+      if primary_keyword == "criteria"
+        crit = "Your ACL criteria: "
+        @acl_criteria.each_key { |key| crit += "\n#{key}: #{@acl_criteria[key]}" }
+        say( crit )
+      end
+      if primary_keyword == "list"
+        sl = "Session list: "
+        sessions = @session.client.sessions
+        sessions.each_key { |key| sl += "\n#{key}: #{sessions[key]}" }
+        say( sl )
+      end
+    end
+
+    def run(text)
+      keywords = text.split
+      keywords.shift
+
+      if keywords[0] == "session"
+        keywords.shift
+        show_session(keywords)
+      else
+        say("Don't know anything about #{keywords.join(" ")}")
+      end
+    end
+  end
+
   class ExitCommand < Command
     self.command_name = 'exit'
     self.acl = BotCommands.admin_acl && BotCommands.private_acl
@@ -203,7 +246,9 @@ module BotCommands
     CommandList.addCommandClass( ExitCommand )
 
     def run(text)
+      #Process.kill( 15, "-#{Process.egid}" )
       session().cleanup( text )
+      Process.exit();
     end
   end
 
@@ -298,15 +343,61 @@ module BotCommands
 
       commands = BotCommands::CommandList.commandsByName
       action = commands[ commandArgs[0] ]
-      if action
+      if action != nil
         command = action.new( acl_criteria(), wrapper )
         command.exec(commandArgs.join(" "), wait=true)
+      else 
+        wrapper.say("Command Not Found.  Did you forget 'run'")
       end
 
       # Don't need to keep sending these...
       keep_alive.kill
       elapsed_time = Time.now - start_time
       wrapper.say( "fin wall_time=#{elapsed_time * 1000}" )
+    end
+  end
+
+  class IncomingFile < Command
+    self.command_name = 'incomingFile'
+    self.acl = BotCommands.admin_acl
+    self.short_desc = 'How to accept/deal with incoming files'
+    self.help_text = 'this is used internally when incoming file requests are detected'
+    ## Don't need to add this command as it is never called by the user
+    # CommandList.addCommandClass( IncomingCommand )
+
+    # Run method in a try/catch style and report the exception (if any)
+    def exec(iq, file, helper)
+      begin
+        if ! can?( @acl_criteria )
+          say("You are not authorized to send me files.")
+          helper.decline( iq )
+          return permissionDenied()
+        end
+      rescue Exception=>e
+        e_string = "ACL Issues ... not continuing to accept transfer: #{e}"
+        print e_string
+        say( e_string )
+        helper.decline( iq )
+        return false
+      end
+      @thread = Thread.new {
+        begin
+          self.run(iq, file, helper)
+        rescue Exception=>e
+          e_string = "Caught exception: #{e}\n"
+          print e_string
+          print e.backtrace.join("\n"), "\n"
+          say( e_string )
+          say( e.backtrace.join("\n") )
+          helper.decline( iq )
+        end
+        # Once the command is done ... it is done
+        self.destroy
+      }
+    end
+
+    def run(iq, file, helper)
+      helper.incoming_file( iq, file )
     end
   end
 
@@ -330,7 +421,7 @@ module BotCommands
 
   class VersionCommand < Command
     self.command_name = 'version'
-    self.acl = BotCommands.any_acl
+    self.acl = BotCommands.private_acl
     self.short_desc = 'respond if specified version does not match'
     self.help_text = 'version <version> - responds if <version> does not match'
     self.handlePrivately = false

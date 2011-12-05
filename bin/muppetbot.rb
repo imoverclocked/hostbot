@@ -1,8 +1,14 @@
 #!/usr/bin/env ruby
 
-if false
+## Enable the next line for debugging and run this from the "lib" directory
+DEBUG_BOT = false
+
+if DEBUG_BOT
   $:.insert(0, ".")
+  $:.insert(0, "lib")
+  $:.insert(0, "../lib")
   dev_append = "-dev"
+  print "Running as a develoment bot...\n"
 else
   dev_append = ""
 end
@@ -12,6 +18,9 @@ require 'configbot/confighandler'
 require 'configbot/puppet_commands'
 hostname = `/bin/hostname`
 hostname.chomp!
+if hostname.match(/\./)
+  hostname = hostname.split('.')[0]
+end
 pidfile = "/var/run/muppetbot#{dev_append}.pid"
 
 if (File.exist?(pidfile))
@@ -29,7 +38,11 @@ if (old_pid)
   end
 end
 # The cred's we need to talk to the jabber server
-jid      = "muppetbot@bots.uahirise.org/pastor-#{hostname}#{dev_append}"
+if DEBUG_BOT
+  jid      = "muppetbot@bots.uahirise.org/dev-pastor-#{hostname}"
+else
+  jid      = "muppetbot@bots.uahirise.org/pastor-#{hostname}"
+end
 password = 'AnotherPassword'
 server   = 'jabs.uahirise.org'
 muc_jid  = "hostbots#{dev_append}@conference.uahirise.org"
@@ -88,7 +101,11 @@ module HiBot
     end
 
     def watchNick?( nick )
-      nick =~ /cnode.*/
+      if (nick =~ /cnode.*/ or nick =~ /opends.*/)
+	     return true
+		else
+		  return false
+		end
     end
 
   end
@@ -117,5 +134,7 @@ msg_handler.on_exception{begin; msg_handler.cleanup; rescue Exception => e; puts
 begin
   Thread.stop
 ensure
-  File.delete(pidfile)
+  if (File.exist?(pidfile))
+    File.delete(pidfile)
+  end
 end

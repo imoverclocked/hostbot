@@ -7,43 +7,54 @@ require 'tempfile'
 module BotCommands
 
  class GetCommand < Command
-    self.command_name = 'get'
-    self.acl = BotCommands.admin_acl && BotCommands.private_acl
+    self.command_name = 'dl'
+    self.acl = BotCommands.admin_acl & BotCommands.private_acl
     self.short_desc = 'downloads urls to a specified destination directory'
     self.help_text = <<EOD
-get source_uri [ source_uri ... ] destination
+dl source_uri [ source_uri ... ] destination
 
-Downloads files from an http URI into a specified destination. The destination must be
-a directory and the file saved will be the same as the basename of each source_uri.
+Downloads files from an http URI into a specified destination. The destination
+must be a directory and the file saved will be the same as the basename of each
+source_uri.
+
 No output will be returned in the event that everything succeeds appropriately.
 EOD
     self.handlePrivately = false
     CommandList.addCommandClass( GetCommand )
 
     def run(text)
-      text["get"] = ""
+      text["dl"] = ""
       args = text.split
       destination = args.pop
       # Fix annoying iChat strings
       args.reject! { |url| url.match(/^\[.*\]$/) }
       if ! File.directory?( destination )
-        say("ignoring get command: destination is not a directory")
+        say("ignoring dl command: destination is not a directory")
         return
       end
-      # say("getting file[s] (#{args.join(" ")}) and placing them into #{destination}.")
+      # say("downloading file[s] (#{args.join(" ")}) and placing them into #{destination}.")
 
       # TODO: catch errors and retry/report as needed
+      os = `uname -s`
       get_thread = args.map { |url| Thread.new {
         filename = File.basename( url )
         url = URI.parse(url)
         file = File.new("#{destination}/#{filename}", File::CREAT|File::TRUNC|File::RDWR, 0644)
-        http = Net::HTTP.start(url.host, url.port) do |http|
-          http.get(url.path) { |block| file.write(block) }
+        http = Net::HTTP.new(url.host, url.port)
+        if (url.scheme == "https")
+          http.use_ssl=true
+          http.verify_mode = OpenSSL::SSL::VERIFY_NONE
         end
+        http.get(url.path) { |block| file.write(block) } 
         file.close()
+        if (os.strip == "Darwin")
+          say(`md5 -r #{destination}/#{filename}`.strip)
+        else
+          say(`md5sum #{destination}/#{filename}`.gsub(/  /,' ').strip)
+        end
       }}
 
-      # Wait for get requests to finish
+      # Wait for download requests to finish
       get_thread.each { |thread| thread.join }
     end
   end
@@ -83,7 +94,7 @@ EOD
 
   class PGrepCommand < Command
     self.command_name = 'pgrep'
-    self.acl = BotCommands.admin_acl
+    self.acl = BotCommands.admin_acl & BotCommands.private_acl
     self.short_desc = 'short for process grep, a way to look for specific processes'
     self.help_text = 'pgrep filter - short for process grep, a way to look for specific processes
 
@@ -120,7 +131,7 @@ NB: the underlaying command looks something like: ps -ef | grep $filter | grep -
 
   class RunCommand < Command
     self.command_name = 'run'
-    self.acl = BotCommands.admin_acl && BotCommands.private_acl
+    self.acl = BotCommands.admin_acl & BotCommands.private_acl
     self.short_desc = 'spawns a new thread which waits for output'
     self.help_text = <<EOD
 run command - spawns a new thread which waits for output from [command]
@@ -139,7 +150,14 @@ EOD
     def run(text)
       command = text
       command["run"] = ""
-      output = `#{command}`
+      redirect = " 2>&1"
+      check_error = command.split
+      if (check_error[0] == "-e")
+        check_error.slice!(0)
+        command = check_error.join
+        redirect = ""
+      end
+      output = `#{command}#{redirect}`
       output = output.chomp()
       if output.length > 0
         say("Output from#{command}:\n#{output}")
@@ -149,7 +167,7 @@ EOD
 
   class WatchCommand < Command
     self.command_name = 'watch'
-    self.acl = BotCommands.admin_acl
+    self.acl = BotCommands.admin_acl & BotCommands.private_acl
     self.short_desc = 'spawns a new thread which repeatedly runs a command, waiting for a change in output'
     self.help_text = <<EOD
 watch command - spawns a new thread which executes a command repeatedly waiting for differences
@@ -162,7 +180,7 @@ EOD
       tmp.write( `#{command}` )
       path = tmp.path()
       tmp.close()
-      return path
+      return path, tmp
     end
 
     def run(text)
@@ -172,16 +190,18 @@ EOD
       file0 = runIntoTmp( command )
 
       while ! finish?()
-        file1 = runIntoTmp( command )
+        (file1, file1tmp) = runIntoTmp( command )
         differences = `diff #{file0} #{file1}`
         if $? != 0
           say( differences )
         end
         begin
           File.unlink( file0 )
+          file0tmp = nil
         rescue Exception=>e
         end
         file0 = file1
+        file0tmp = file1tmp
         sleep( 1 )
       end
       say("#{text} -- has finished")
@@ -242,6 +262,17 @@ EOD
       end
     end
 
+    def linux_vservers(resource)
+      vservers = `vserver-stat`.split("\n")
+      return if $? != 0
+      vservers.map! { |vserver| vserver.split.pop }
+      vservers.delete_if{ |vserver| vserver !~ /#{resource}/ }
+      if ! vservers.empty?
+        vserver_say = "VServers include #{vservers.join("\n")}"
+        say( vserver_say )
+      end
+    end
+
     def networking(resource)
       network_info = `ifconfig -a`
       if network_info =~ /#{resource}/
@@ -264,6 +295,7 @@ EOD
       mounts( resource )
       xen_domains( resource )
       solaris_zones( resource )
+      linux_vservers( resource )
       networking( resource )
       hostname( resource )
     end
@@ -271,7 +303,7 @@ EOD
 
   class WOMPCommand < Command
     self.command_name = 'womp'
-    self.acl = BotCommands.admin_acl
+    self.acl = BotCommands.admin_acl & BotCommands.private_acl
     self.short_desc = 'Sends a Wake On Magic Packet to a specified MAC Address'
     self.help_text = <<EOD
 womp <mac address> - send a WOMP to the specified mac address

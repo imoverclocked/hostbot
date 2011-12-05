@@ -2,6 +2,7 @@
 
 # Neede for the "get" command
 require 'net/http'
+require 'net/https'
 require 'uri'
 
 require 'configbot/basehandler'
@@ -19,12 +20,18 @@ module HiBot
       commands = BotCommands::CommandList.commandsByName
 
       action = commands[ keyword ]
-      if action
+      if action != nil
         command = action.new( acl_criteria(), @sess )
         return command.exec(text)
       end
-
       unrecognizedResponse( text )
+    end
+
+    def incomingFile( iq, file, file_helper )
+      fileTransfer = BotCommands::CommandList.incomingFile.new( acl_criteria(), @sess )
+      fileTransfer.exec( iq, file, file_helper )
+      # hack!
+      return true
     end
 
     def cleanup(text)
@@ -47,8 +54,8 @@ module HiBot
 
     # When we don't know what to say, say this
     def unrecognizedResponse( text )
-      print "Unrecognized Response : #{text}"
-      #say("For help, simply type: help")
+      print "Unrecognized Response: #{text}"
+      #say("Unrecognized Command: Did you forget 'run'?")
     end
   end
 
@@ -90,6 +97,8 @@ module HiBot
 
     # When we don't know what to say, don't say anything
     def unrecognizedResponse( text )
+      say ("Command not found.  Did you forget 'run'?")
+      #p "Unrecognized Response: #{text}"
     end
   end
 

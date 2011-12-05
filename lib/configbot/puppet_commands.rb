@@ -1,6 +1,19 @@
 #
 # pastor-muppet (muppet bot) commands
 #
+BotCommands::Groups.addAlias("@Darwin", "@Puppet:kernel=Darwin")
+BotCommands::Groups.addAlias("@SunOS", "@Puppet:kernel=SunOS")
+BotCommands::Groups.addAlias("@Linux", "@Puppet:kernel=Linux")
+BotCommands::Groups.addAlias("@Solaris", "@Puppet:operatingsystem=Solaris")
+BotCommands::Groups.addAlias("@SnowLeopard", "@Puppet:kernel=Darwin, macosx_productversion_major=10.6")
+BotCommands::Groups.addAlias("@Leopard", "@Puppet:kernel=Darwin, macosx_productversion_major=10.5")
+BotCommands::Groups.addAlias("@cnodes", "@Regex:regex=/cnode[0-9]*/")
+BotCommands::Groups.addAlias("@pnodes", "@Regex:regex=/pnode[0-9]*/")
+BotCommands::Groups.addAlias("@missing", "@missing:Systems that are missing from the room")
+BotCommands::Groups.addAlias("@in_room", "@in_room:Systems that are in the room")
+BotCommands::Groups.addAlias("@hinet", "@Puppet:network_side=hinet")
+BotCommands::Groups.addAlias("@pirlnet", "@Puppet:network_side=pirlnet")
+
 
 module BotCommands
 
@@ -41,6 +54,109 @@ ask -p parameter -n node e.g. combine the two!
     CommandList.addCommandClass( AskCommand)
     def run(text)
       say(`/etc/puppet/files/display_facter.rb #{text}`)
+    end
+  end
+
+  class UnaliasCommand < Command
+    self.command_name = 'unalias'
+    self.acl = BotCommands.muppetany_acl
+    self.handlePrivately = false
+    self.short_desc = "Remove non permanent aliases from skynet"
+    self.help_text = "Remove non permanent aliases from skynet"
+    CommandList.addCommandClass( UnaliasCommand)
+    def run(text)
+      command = text.split
+      command.shift
+      if command.length == 0
+        say("Usage:  unalias [alias]")
+      else
+        if (BotCommands::Groups.remAlias(command[0]))
+          say("Alias #{command[0]} successfully removed")
+        else
+          say("Alias #{command[0]} could not be removed")
+        end
+      end
+    end
+  end
+  class AliasCommand < Command
+    self.command_name = 'alias'
+    self.acl = BotCommands.muppetany_acl
+    self.handlePrivately = false
+    self.short_desc = "Define or display aliases for skynet"
+    self.help_text = "Define or display aliases for skynet:
+alias [alias-name[=string]
+alias               # list all defined aliases
+alias @alias        # list @alias definition if it exists
+alias @alias=string # set @alias to = string (if it's valid and if @alias isn't predefined and permanent)
+Ex: alias @example=@List:complicated,guru   # Sets the alias @example to the nodes guru and complicated 
+further examples can be gleaned from running alias without arguments"
+    CommandList.addCommandClass( AliasCommand)
+    def run(text)
+      command = text.split
+      command.shift
+      if (command.length == 0)
+        BotCommands::Groups.aliases.each {|key, value|
+          say("#{key}: #{value}")
+        }
+      else
+        aliases=command[0].split("=",2)
+        if aliases[0][0] != ?@
+          say("Aliases must begin with @ symbol.")
+          return
+        end
+        if aliases.length==1
+          if BotCommands::Groups.aliases.include?(aliases[0].downcase)
+            say("Alias: #{aliases[0]} = " + "#{BotCommands::Groups.aliases[aliases[0].downcase]}")
+          else
+            say("Alias: #{aliases[0]} doesn't exist")
+          end
+        else
+          if BotCommands::Groups.sticky.include?(aliases[0].downcase)
+            say("Alias: #{aliases[0]} already exists and is permanent")
+          else
+            nodes = Groups.resolve(@session, aliases[1])
+            if (nodes.kind_of?(Array) and nodes != [])
+              BotCommands::Groups.addAlias(aliases[0], aliases[1], false)
+              nodes = Groups.resolve(@session, aliases[0]) 
+              short_nodes = HiBot::AggregatorHelpers.node_shorthand_ranges( nodes )
+              say("(#{aliases[0]}): #{short_nodes}")
+            else 
+              say("Alias: #{aliases[0]}=#{aliases[1]} results in an empty alias, so not added")
+            end
+          end
+        end
+      end
+    end
+  end
+
+  class NodesCommand < Command
+    self.command_name = 'nodes'
+    self.acl = BotCommands.muppetadmin_acl
+    self.handlePrivately = false
+    self.short_desc = "show all/groups of nodes"
+    self.help_text = "Lists nodes that are known to the bot.
+nodes               # list nodes in the room
+nodes @in_room      # list nodes in the room
+nodes @missing      # list missing nodes
+nodes /cnode[0-9]*/ # list all nodes in the room matching the regex
+nodes @alias        # list nodes matching the alias
+
+@missing generation:
+Using the data stored by facter and the room roster of the MUC displays nodes which have registered with muppet but aren't currently in the room"
+    CommandList.addCommandClass(NodesCommand)
+    def run (text)
+      command = text.split
+      command.shift
+      nodes = []
+
+      if command.length == 0
+        command_desc = "@in_room"
+      else
+        command_desc = command.join(" ")
+      end
+      nodes = Groups.resolve(@session, command_desc) 
+      short_nodes = HiBot::AggregatorHelpers.node_shorthand_ranges( nodes )
+      say("(#{command_desc}): #{short_nodes}")
     end
   end
 
@@ -93,18 +209,53 @@ puppet -d node defintion    #delete [definition] from [node]
       yaml_files.each do |y|
          if (y[1] and defined? y[1].ivars)
             y[1].ivars['values'].each do |val|
-               if /#{whereis}/.match(val[1])
-                  if (display[y[0]]) == nil
-                     display[y[0]] = Array.new
-                  end
-                  display[y[0]].push("#{val[0]}: #{val[1]}")
+               if val[1].kind_of? Time
+                 val[1] = val[1].to_s
+               end 
+               if val[1].kind_of? String
+                 if /#{whereis}/.match(val[1])
+                    if (display[y[0]]) == nil
+                       display[y[0]] = Array.new
+                    end
+                    display[y[0]].push("#{val[0]}: #{val[1]}")
+                 end
                end
             end
          end
       end
       display.sort.each do |y,z|
-         say ("Found in #{y} puppet info: #{z.join(", ")}\nFor more information type in chatroom: ask -n #{y}")
+         say("Found in #{y} puppet info: #{z.join(", ")}\nFor more information type in chatroom: ask -n #{y}")
       end
+    end
+  end
+  class PuppetCACommand < Command
+    self.command_name = 'puppetca'
+         self.acl = BotCommands.muppetadmin_acl
+         self.short_desc = "Interaction with puppet certificate authority."
+         self.help_text = "Interaction with puppet certificate authority."
+         CommandList.addCommandClass(PuppetCACommand)
+         def run (text)
+           say(`#{text}`)  
+         end
+  end
+  class RetireCommand < Command
+    self.command_name = 'retire'
+    self.acl = BotCommands.muppetadmin_acl
+    self.short_desc = "Retire systems no longer in use"
+    self.help_text = "USAGE:  retire [name] -- To retire a system\nretire -u [name] --To unretire a system"
+    CommandList.addCommandClass(RetireCommand)
+    def run (text)
+        dir = "/var/lib/puppet/yaml/facts/"
+            args = text.split
+            args.shift
+        if (args[0] and args[0].length > 0 and args[0][0,1] != "." and args[0][0,1] != "/" and args[0] != "-u")
+           `mv #{dir}#{args[0]}* #{dir}/retired`
+        elsif (args[1].length > 0 and args[0] == "-u" and args[1][0,1] != "." and args[1][0,1] != "/")
+           `mv #{dir}/retired/#{args[1]}* #{dir}`
+        else
+           say("USAGE:  retire [name] -- To retire a system")
+           say("retire -u [name] --To unretire a system")
+        end
     end
   end
 
@@ -112,30 +263,19 @@ puppet -d node defintion    #delete [definition] from [node]
     self.command_name = 'missing'
     self.handlePrivately = false
     self.acl = BotCommands.muppetany_acl
-    self.short_desc = "Displays missing nodes!"
-    self.help_text = "Using the data stored by facter and the room roster of the MUC displays nodes which have registered with muppet but aren't currently in the room"
+    self.short_desc = "Displays missing nodes! -- deprecated"
+    self.help_text = "see the 'nodes' command for extended usage:
+nodes @missing"
     CommandList.addCommandClass(MissingCommand)
     def run (text)
-        in_room = @session.muc_roster.map { |nick| nick.downcase.split(".")[0] }
-        dir = "/var/lib/puppet/yaml/facts/"
-        all_files = Dir.new(dir).entries.sort!
-        all_nodes = Array.new
-        all_files.each do |nf|
-          if File.file?("#{dir}#{nf}")
-            shortname = nf.split(".")[0]
-            all_nodes.push(shortname)
-          end
-        end
-        all_nodes.uniq!
-        missing = all_nodes - in_room
-        missing_txt = missing.join(", ")
-        say("Missing Nodes: #{missing_txt}")
+        say("'missing' is deprecated in favor of 'nodes @missing'")
     end
   end
 
   class SkynetCommand < Command
     @@command_id = 0
-    @@skynet_maps = { 'womp' => :womp }
+    @group = nil
+    @@skynet_maps = { 'womp' => :womp, 'check' => :check }
     self.command_name = 'skynet'
     self.handlePrivately = false
     self.acl = BotCommands.muppetadmin_acl
@@ -160,10 +300,17 @@ will return.
         if pieces.length == 6
           # This looks and smells like a MAC address ...
           mac_addys.push( addy )
-        else
-          # Lookup MAC address for hostname...
-          mac_from_puppet( addy ).each do |mac|
-            mac_addys.push( mac )
+		    else
+          resolved = Groups.resolve(@session, addy) 
+          if (resolved.kind_of?(Array))
+            say ("Womping: #{resolved.join(", ")}")
+		        resolved.each do |node|
+		          mac_from_puppet(node).each do|mac|
+		    	      mac_addys.push(mac)
+		    	    end
+		        end
+          else
+            mac_addys.push(mac_from_puppet(resolved))
           end
         end
       end
@@ -174,30 +321,77 @@ will return.
       return "womp #{mac_addys.join(" ")}"
     end
 
+    def check(text)
+      group = @group
+      num_rand = 5
+      if group == nil
+        group = "@in_room"
+      end
+      formatted_bots = @session.bot_list.map { |node| node.split("/").pop.downcase }
+      group_bots = Groups.resolve(@session, group)
+      in_room = Set.new(group_bots) & Set.new(formatted_bots)
+      in_room = in_room.to_a
+      rand_array = Array.new
+      #discover = Jabber::Discovery::Helper.new(@session.client)
+      while (rand_array.length < num_rand and in_room.length > 0)
+        jid = in_room[rand(in_room.length)]
+        features = @session.get_features_for("hostbot@bots.uahirise.org/#{jid}")
+        if features.include?("http://uahirise.org/configbot/slcheck/")
+          rand_array.push(jid)
+        end
+        in_room.delete(jid)
+      end
+      args = text.split
+      args.shift
+      args = args.join
+      self.run("skynet @List:#{rand_array.join(",")} slcheck #{args}")
+      text = text + " --nosl"
+      return text
+    end
+
     def mac_from_puppet( address )
       yaml_info = `/etc/puppet/files/display_facter.rb -n #{address} | grep macaddress | awk '{print $3}'`
       ret = yaml_info.split
       ret.uniq!
-      # TODO: resolve the names into a list of MAC addresses
       return ret
     end
 
     def run (text)
       command = text.split(" ")
       command.shift
+      nodes =""
+      group = command[0]
+      if group[0] == ?@
+        nodes = Groups.resolve(@session, group)
+        if nodes.kind_of?(Array)
+          @group = group
+          command.delete(group)
+        end
+      end
+	    bot_list = @session.bot_list
+      not_sent = Array.new
+  		if (nodes.kind_of?(Array))
+        formatted_bots = bot_list.map { |node| node.split("/").pop.downcase }
+        not_sent = nodes - formatted_bots
+	      bot_list.delete_if{|x| !nodes.include?(x.split("/").pop.downcase) }
+  		end
+
       remote_command = command[0]
       map_fn = @@skynet_maps[ remote_command ]
       if map_fn
         command = self.send( map_fn, command.join(" ") ).split(" ")
       end
-      bot_list = @session.bot_list
+
       client = @session.client
       muc = nil
       begin
         muc = @session.muc
       rescue Exception=>e
       end
-      command_id = HiBot::Aggregator.newID( "#{command[0]}", @session, msg_timeout = 1, max_delay = 3 )
+      command_id = HiBot::Aggregator.newID( "#{command[0]}", @session, msg_timeout = 5, max_delay = 15, bot_list)
+      if not_sent.length != 0
+        say ("Not in room, command not sent to : #{not_sent.join(", ")}")
+      end
       bot_list.each { |nick|
         session = client.getSession(nick, muc)
         session.say( "id #{command_id} #{command.join(" ")}" )

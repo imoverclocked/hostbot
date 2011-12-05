@@ -6,9 +6,11 @@ module BotCommands
 
   class CheckCommand < Command
     self.command_name = 'check'
-    self.acl = BotCommands.admin_acl
+    self.acl = BotCommands.admin_acl && BotCommands.private_acl
     self.short_desc = 'run checks for the local system'
     self.help_text = 'check [-f] [check_name] - run a check or all checks for the local system
+
+if -l is specified lists all current checks
 
 if -f is specified, run a fix for failing checks
 
@@ -19,51 +21,86 @@ if no check_name is specified, run all checks available for local system
 
     def initialize( *args )
       super( *args )
-      @opts = {}
+      @opts = {:slcheck=> true, :fix => false, :list => false, :checksDir=>"/etc/configbot/check/"}
+    end
+
+    def reject(words)
+      words.reject! {|word|
+        case word
+          when 'check'
+            true
+          when '--nosl'
+            @opts[:slcheck] = false
+            true
+          when '-f'
+            @opts[:fix] = true
+            true
+          when '-l'
+            @opts[:list] = true
+            true
+        end
+      }
+      return words
     end
 
     def run(text)
       # Parse words and options
       words = text.split
-      options = { :fix => false }
-      words.reject! { |word|
-        case word
-          when 'check'
-            true
-          when '-f'
-            options[:fix] = true
-            true
+      if @opts[ :checksDir ] == nil
+        @opts[ :checksDir ] = "/etc/configbot/check/"
+      end
+      words = reject(words)
+      options =@opts
+      if (options[:list] == true)
+        if words.length == 0
+          tests = Dir.glob("#{options[:checksDir]}/**/*.t")
+          tests.map!{ |t| dir_array = t.split(".")[0].split("/"); test = dir_array.pop; "#{dir_array.pop}/#{test}" }
+          say (tests.chomp.join(", "))
+        else
+          words.each{ |check| 
+            tests = Dir.glob("#{options[:checksDir]}/#{check}/*.t")
+            tests.map!{ |t| dir_array = t.split(".")[0].split("/"); test = dir_array.pop; "#{dir_array.pop}/#{test}" }
+            say (tests.chomp.join(", "))
+          }
         end
-      }
-
+     else
       # Run all tests if the parameter is an empty string
       if words.length == 0
         words.push("")
       end
 
       # Get all status messages into an array
-      status = words.map { |check|
-        check_status( check, options )
-      }
-
+      status = []
+      #status = words.map { |check|
+      #  check_status(check,options )
+      #}
+		words.each{ |check|
+		  status += check_status(check, options)
+		}
       # ignore blank outputs
+      status.map!{ |output| 
+        if (output.class == String) 
+          output.strip
+        else
+          output
+        end 
+      }
       status.reject! { |output|
         output == nil or output == false or output.length == 0
       }
-
-      if (status.length != 0)
-        say (status.join("\n"))
-      end
+      status.each { |stat| 
+            if (stat.length != 0 )
+               say("#{stat.chomp}\n") 
+            end      
+      }
     end
-
-    def puppet_last_run()
-      puppetfile = "/var/tmp/puppet_is_running"
-      if (!File.exist?(puppetfile))
-        return "Puppet has never run on this system"
-      elsif ((Time.now - File.mtime(puppetfile)) < 60*60*24)
-        return true
+      if (options[:slcheck])
+        @opts[:checksDir] = "/etc/configbot/slcheck/"
+        @opts[:slcheck] = false
+        sltext = text
+        sltext.slice!("--nosl")
+        self.run(sltext)
       end
-      return "Puppet has not been run in the last 24 hours.  Puppet last run " + File.mtime(puppetfile).to_s
     end
 
     def prefixmaster?()
@@ -74,30 +111,7 @@ if no check_name is specified, run all checks available for local system
       return File.exists?("/usr/sbin/pksync")
     end
 
-    def show_pgrep_output(text, newThread=true, returnResults=false)
-      filter = text.split[1]
-      # Why can't all ps just get along?!?
-      if ! @opts[:ps]
-        `ps -ef`
-        if $? == 0
-          @opts[:ps] = '-ef'
-        else
-          @opts[:ps] = '-eax'
-        end
-      end
-      prefix = "pgrep '#{filter}:\n"
-      command = "ps #{@opts[:ps]} | grep -i '#{filter}' | grep -v grep"
-      if newThread && !returnResults
-        Thread.new { say("#{prefix}" + `#{command}`) }
-      elsif returnResults
-        return  `#{command}`
-      else
-        say("#{prefix}" + `#{command}`)
-      end
-    end
-
     def check_status(check, options = {:fix => false})
-      status_string = ""
       if options[ :checksDir ] == nil
         options[ :checksDir ] = "/etc/configbot/check/"
       end
@@ -107,36 +121,18 @@ if no check_name is specified, run all checks available for local system
       else
         options[:check] = ""
       end
-
-      if check.length == 0 or check == 'puppet'
-        puppet_output = show_pgrep_output("pgrep puppetd", false, true)
-        if (puppet_last_run() != true)
-          status_string += "\n" + puppet_last_run()
-        end
-        if (puppet_output == "")
-          status_string += "\nPuppet not currently running"
-        end
-      end
-
-      # Quick hack to ensure one line ending exists
-      status_string = status_string.chomp() + "\n"
-      status_string += check_status_recurse( options ).join("\n")
-
-      if (status_string.length < 2)
-        return false
-      end
-      # return "Status for #{@session.client.jid.resource}:" + status_string
-      return status_string
+	return check_status_recurse(options)
     end
 
     def check_status_recurse(options)
       status = []
-
       # Running a specific set of tests?
       if options[:check] != '' and File.directory?("#{options[:checksDir]}#{options[:check]}")
-        options[:check] = ""
         options[:checksDir] = "#{options[:checksDir]}#{options[:check]}/"
+        options[:check] = ""
         return check_status_recurse(options)
+      elsif options[:check] != ''
+        return []
       end
 
       # run all checks inside of checksDir
@@ -152,7 +148,7 @@ if no check_name is specified, run all checks available for local system
       # Run all tests in this directory
       # say("Tests: #{options[:checksDir]}: #{tests.join(" :: ")}")
       tests.map { |testFN|
-        output = `#{testFN}`.chomp()
+        output = `#{testFN}`.strip
         if $? != 0
           if options[:fix]
             fixFN = testFN
@@ -165,8 +161,8 @@ if no check_name is specified, run all checks available for local system
             else
               status.push( "no fix for #{File.basename(fixFN)}" )
             end
-          else
-            status.push( "#{File.basename(testFN)} returned: #{output}" )
+          elsif output.length > 0
+              status.push( "#{File.dirname(testFN).split("/").pop}/#{File.basename(testFN)} returned: #{output}" )
           end
         end
       }
@@ -174,18 +170,44 @@ if no check_name is specified, run all checks available for local system
       # traverse directories and run tests...
       directories.map { |dir|
         options[ :checksDir ] = "#{dir}/"
-        status.push( check_status_recurse(options) )
+        status += check_status_recurse(options) 
       }
-
       return status
 
     end
 
   end
 
+  class SLCheckCommand < CheckCommand
+    self.command_name = 'slcheck'
+    self.acl = BotCommands.admin_acl && BotCommands.private_acl
+    self.short_desc = 'Run system wide checks'
+    self.help_text = 'Run system wide checks'
+    self.handlePrivately = false
+    CommandList.addCommandClass(SLCheckCommand)
+
+    def initialize( *args )
+      super(*args)
+      @opts[:checksDir] ="/etc/configbot/slcheck/"
+      @opts[:slcheck] = false
+    end
+    def reject(words)
+      words.reject! {|word|
+        case word
+          when 'slcheck'
+            true
+          when '-l'
+            @opts[:list] = true
+            true
+        end
+      }
+      return words
+    end
+  end 
+
   class PBuildCommand < CheckCommand
     self.command_name = 'pbuild'
-    self.acl = BotCommands.admin_acl
+    self.acl = BotCommands.admin_acl && BotCommands.private_acl
     self.short_desc = 'Starts up pbuild version of clubot on prefix_masters'
     self.help_text = 'pbuild - Starts up pbuild version of clubot on prefix_masters'
     CommandList.addCommandClass( PBuildCommand )
@@ -195,7 +217,7 @@ if no check_name is specified, run all checks available for local system
         clu_exists = File.exists?("/opt/prefix/usr/bin/clubot")
         pbuild_config = File.exists?("/etc/prefix-build-bot.xml")
         if (clu_exists and pbuild_config)
-          `su tims -c "/opt/prefix/usr/bin/clubot -c /etc/prefix-build-bot.xml &"`
+          `su prefix -c "/opt/prefix/usr/bin/clubot -c /etc/prefix-build-bot.xml &"`
         else
            # err = "#{@client.jid.resource}: is a prefix_master but an error has occured\n";
            err = "I am a prefix_master but an error has occured\n";
@@ -213,7 +235,7 @@ if no check_name is specified, run all checks available for local system
 
   class PrefixCommand < CheckCommand
     self.command_name = 'prefix'
-    self.acl = BotCommands.admin_acl
+    self.acl = BotCommands.admin_acl && BotCommands.private_acl
     self.short_desc = 'does something with prefix ... not sure what yet'
     self.help_text = 'prefix - does something with prefix ... not sure what yet'
     CommandList.addCommandClass( PrefixCommand )
