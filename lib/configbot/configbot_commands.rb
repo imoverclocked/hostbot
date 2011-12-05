@@ -231,6 +231,8 @@ This does not work for interactive commands and there is no way (yet) to nicely
 kill off the process once it is started. Running things like "run ping 127.0.0.1"
 under Linux will never return. Instead you can "run ping -c 2 127.0.0.1"
 
+Note: you *can* kill off the internal bot process using bps/bkill.
+
 Also, pipes and standard redirects should work:
 
 "run hostname | grep local > /dev/null; echo $?"

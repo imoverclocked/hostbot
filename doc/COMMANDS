@@ -1,0 +1,157 @@
+[13:27:26] <Tim Spriggs> help
+[13:27:26] <tims-dev> known commands:
+bkill -- kill a bot process
+bps -- internal bot process listing
+bshow -- show bot internals
+check -- run checks for the local system
+dl -- downloads urls to a specified destination directory
+exit -- ask a bot to exit
+help -- provides help on various commands
+hosts -- respond with " " or my hostname
+id -- provides an id to track commands
+info -- grab a bunch of information about a system in just a few quick keystrokes
+note -- adds/removes/lists system notes
+pbuild -- Starts up pbuild version of clubot on prefix_masters
+pgrep -- short for process grep, a way to look for specific processes
+ping -- respond if asked correctly
+prefix -- does something with prefix ... not sure what yet
+run -- spawns a new thread which waits for output
+slcheck -- Run system wide checks
+version -- respond if specified version does not match
+watch -- spawns a new thread which repeatedly runs a command, waiting for a change in output
+whereis -- looks through a list of resources to find matching values
+womp -- Sends a Wake On Magic Packet to a specified MAC Address
+
+bkill/bps/bshow:
+  These commands allow you to peer into the internal state of the bot and even kill off commands that are running amok
+
+check:
+  Runs a series of checks under /etc/configbot/check. Each check gets it's own message if it outputs anything. Checks should only output something if it fails.
+
+  Checks should be grouped under similar sub-directories. An example structure for checks:
+
+    /etc/configbot/check/autofs
+    /etc/configbot/check/autofs/autofs.t
+    /etc/configbot/check/darwinlogs
+    /etc/configbot/check/darwinlogs/fileidrace.t
+    /etc/configbot/check/darwinlogs/groupmisconfig.t
+    /etc/configbot/check/generic
+    /etc/configbot/check/generic/load.t
+    /etc/configbot/check/generic/opt_free.t
+    /etc/configbot/check/generic/tmp_free.t
+    /etc/configbot/check/mtu
+    /etc/configbot/check/mtu/mtu_check.t
+    /etc/configbot/check/prefix
+    /etc/configbot/check/prefix/prefix_hiopsPerlUsed.t
+    /etc/configbot/check/prefix/prefix_hirocSoftwareDependencies.t
+    /etc/configbot/check/printers
+    /etc/configbot/check/printers/printers.t
+    /etc/configbot/check/puppet
+    /etc/configbot/check/puppet/puppetRunning.t
+    /etc/configbot/check/reverseresolve
+    /etc/configbot/check/reverseresolve/test_ip6.t
+    /etc/configbot/check/wired
+    /etc/configbot/check/wired/hiopsPerlUsed.t
+    /etc/configbot/check/wired/hirocSoftwareDependencies.t
+
+  Any check script whould end with ".t". If there is a fix for a failing check then the script should be named the same way but end with a ".f". This is what is run when a user asks for "check -f".
+
+dl:
+  Downloads a file from an http/https URL, places it into a specified location and calculates the md5 checksum of the contents.
+
+exit:
+  Tells the bot to terminate.
+
+help:
+  Displays the above message. Given a command (eg: "help dl") it will return command specific help.
+
+hosts:
+  A somewhat archaic command that simply responds with " ". This was useful before there was a skynet command which is provided by a muppet bot.
+
+  Maybe you can find a new use for it and let us know!
+
+id:
+  Generally used internally via the "skynet" command. This command labels the output for a given command and shows keep-alive messages to let you know that the command is still running. It can be useful for humans to use and the interaction looks something like this:
+
+    [13:40:30] <Tim Spriggs> id sleep_id run sleep 15
+    [13:40:40] <tims-dev> rid=sleep_id keep-alive
+    [13:40:45] <tims-dev> rid=sleep_id fin wall_time=15005.639
+
+info:
+  info attempts to give information about puppet as well as output from uname -a, ifconfig -a, w
+
+note:
+  Maintains a list of notes on a system, about a system. These notes are searched by the "whereis" command for maximum usefullness.
+
+  An example of the utility of this command:
+    [13:45:37] <Tim Spriggs> note tims-dev used to be called guru and now sits next to Tim's desk
+    [13:45:37] <tims-dev> added note
+      ... perhaps sometime later ...
+
+    [13:45:39] <Tim Spriggs> whereis guru
+    [13:45:39] <tims-dev> My notes match: tims-dev used to be called guru and now sits next to Tim's desk
+
+pbuild/prefix:
+  Specialized commands used internally here. See source for details.
+
+pgrep:
+  Process grep (system processes)
+
+  NB: the underlaying command looks something like: ps -ef | grep $filter | grep -v grep
+
+ping:
+  ping a node and conditionally expect a reply.
+
+  in a room full of hosts you can run: ping guru
+  any host with the resource "guru" will respond with a private message "pong"
+
+  This helps pick out single machines in a large room. Also chat clients (eg: iChat) that group members together need this to find singular hosts.
+
+run:
+  spawns a new thread which waits for output from a command
+
+  This does not work for interactive commands and there is no way (yet) to nicely
+  kill off the process once it is started. Running things like "run ping 127.0.0.1"
+  under Linux will never return. Instead you can "run ping -c 2 127.0.0.1"
+
+  Note: you *can* kill off the internal bot process using bps/bkill.
+
+  Also, pipes and standard redirects should work:
+
+  "run hostname | grep local > /dev/null; echo $?"
+
+slcheck:
+  Similar to "check" but meant to run tests that should only be run on a few systems at a time. These checks are generally looking at services that should be available but should not be run with hudreds (thousands?) of hosts at the same time. This helps to avoid DDOS attacks on local/remote services.
+
+  On the other hand, if you do want to DDOS a local service, you can always just create an appropriate "check". :)
+
+  slcheck is generally run via the "skynet check" command which chooses a handfull of available hosts to run slcheck.
+
+version:
+  get the version of a running bot
+  also, don't respond if given the correct version:
+
+  [15:08:53] <Tim Spriggs> version 0.0.14
+  [15:08:55] <Tim Spriggs> version
+  [15:08:55] <tims-dev> 0.0.14
+
+  This helps to find bots that are not running the latest version.
+
+watch:
+  spawns a new thread which executes a command repeatedly waiting for differences
+
+  essentially this gives a diff output with < and > to signify old and new output.
+
+whereis:
+  Attempts to locate resources that match a given word/path/ip address/username/mount/...
+
+  For systems that don't like users logged into more than one machine (eg: OSX) this can be extremely helpful in diagnosing issues.
+
+womp:
+  Wake On Magic Packet.
+
+  The skynet version allows hostnames if the hostname corresponds to a puppet/facter entry.
+
+  When talking directly to a bot an ethernet address needs to be given:
+
+  womp 00:11:22:33:44:55
