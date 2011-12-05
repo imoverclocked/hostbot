@@ -7,8 +7,9 @@ options = {}
 optparse = OptionParser.new do|opts|
   opts.banner = "Usage: configbot [options]"
   options[:config] = '/etc/configbot/conf/main.yaml'
-  opts.on( '-c', '--config', 'configuration file' ) do|file|
-    options[:config] = file
+  opts.on( '-c f', '--config=f', '--config f', 'configuration file' ) do|f|
+    options[:config] = f
+    puts "using configuration: #{f}"
   end
   options[:debug] = false
   opts.on( '-d', '--debug', 'debug mode' ) do
