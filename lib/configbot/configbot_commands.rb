@@ -427,10 +427,23 @@ EOD
       domain_list.shift # Get rid of header
       domain_list.shift # Get rid of header
       domain_list.pop # Get rid of empty footer
-      domains = domain_list.map { |line| line.split[2] }
+      domains = domain_list.map { |line| line.split[1] }
       domains.delete_if{ |domain| domain !~ /#{resource}/ }
       if ! domains.empty?
         domain_say = "libvirt domains include #{domains.join("\n")}"
+        say( domain_say )
+      end
+    end
+
+    def lxc_instance(resource)
+      domain_list = `lxc-ls --fancy`.split("\n")
+      return if $? != 0
+      domain_list.shift # Get rid of header
+      domain_list.shift # Get rid of header
+      domains = domain_list.map { |line| line.split[0] }
+      domains.delete_if{ |domain| domain !~ /#{resource}/ }
+      if ! domains.empty?
+        domain_say = "lxc instances include #{domains.join("\n")}"
         say( domain_say )
       end
     end
@@ -492,6 +505,7 @@ EOD
       mounts( resource )
       xen_domains( resource )
       libvirt_domains( resource )
+      lxc_instance( resource )
       solaris_zones( resource )
       linux_vservers( resource )
       networking( resource )

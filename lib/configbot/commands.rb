@@ -88,7 +88,6 @@ module BotCommands
       end
       @finish = false
       Command.addProc( self )
-      # print "My identity: ", self.class.command_name, "\n"
     end
 
     def destroy
@@ -157,6 +156,34 @@ module BotCommands
         self.destroy
       }
       @thread.join if wait
+    end
+
+  end
+
+  # This class is used for commands with sub-commands (eg: service ... )
+
+  class MetaCommand < Command
+
+    def exec(text, wait = false)
+      command = self.class.command_name
+      text[command] = ""
+      (sub_command, text) = text.split(" ",2)
+      command = "#{self.class.command_name} #{sub_command}"
+      # Normalize command (extraneous spaces etc...)
+      text = "#{command} #{text}"
+
+      commands = BotCommands::CommandList.commandsByName
+      action = commands[ command ]
+      if action != nil
+        command = action.new( acl_criteria(), @session )
+        command.exec(text, wait=true)
+      else 
+        self.help(text)
+      end
+    end
+
+    def help(text)
+      say( self.class.help_text )
     end
 
   end
@@ -285,14 +312,11 @@ module BotCommands
     end
 
     def run(text)
-      keywords = text.split
-      keywords.shift
-      if keywords.length > 0
-        keywords.each { |topic|
-          help_on_topic(topic)
-        }
-      else
+      (cmd, topic) = text.split(" ", 2)
+      if topic.nil?
         general_help()
+      else
+        help_on_topic(topic)
       end
     end
   end

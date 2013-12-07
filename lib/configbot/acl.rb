@@ -3,8 +3,8 @@
 #
 
 module BotCommands
-  @@AdminJID = ['tims@uahirise.org', 'kfine@uahirise.org']
-  def self.AdminJID; @@AdminJID; end
+  # @@AdminJID = ['tims@uahirise.org', 'kfine@uahirise.org']
+  # def self.AdminJID; @@AdminJID; end
   @@AdminMUC = ['hostbots@conference.uahirise.org', 'hostbots-dev@conference.uahirise.org']
   def self.AdminMUC; @@AdminMUC; end
 
@@ -285,7 +285,7 @@ module BotCommands
   def self.admin_acl; @@admin_acl; end
   @@admin_acl = ACLMatchAny.new(
     # Listen to Administrative JIDs
-    ACLItem.new(:or, :jid, BotCommands.AdminJID),
+    # ACLItem.new(:or, :jid, BotCommands.AdminJID),
     # Listen to room moderators in private MUC
     ACL.new(
       ACLItem.new(:or, :jid, BotCommands.AdminMUC),

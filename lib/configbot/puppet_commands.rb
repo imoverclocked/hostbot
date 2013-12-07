@@ -55,6 +55,34 @@ ask -p parameter -n node e.g. combine the two!
     end
   end
 
+  class SeenCommand < Command
+    self.command_name = 'seen'
+    self.acl = BotCommands.allowInternalMuppet
+    self.handlePrivately = false
+    self.short_desc = "Asks muppetbot for information about when a node was last seen"
+    self.help_text = "ask the puppet master about when a node was last seen by puppet.
+Usage:  seen node [node [...]]  e.g. seen terby guru pohaku
+"
+    CommandList.addCommandClass( AskCommand)
+    def run(text)
+      command = text.split
+      command.shift
+      if command.length == 0
+        say("Usage:  seen node1 [node2 [...]]")
+      else
+        h = Hash.new()
+        `/etc/puppet/files/display_facter.rb ask -p _timestamp`.split("\n").each{ |line|
+          host_seen = line.split(":",2)
+          if host_seen.size == 2
+            h[host_seen[0]] = host_seen[1]
+          end
+        }
+        output = command.each {|node| "#{node}:#{h[node]}\n" }
+        say(output.join("\n"))
+      end
+    end
+  end
+
   class UnaliasCommand < Command
     self.command_name = 'unalias'
     self.acl = BotCommands.allowInternalMuppet

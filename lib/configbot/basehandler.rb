@@ -19,7 +19,7 @@ require 'configbot/bghandler'
 
 module HiBot
 
-  @@CONFIGBOT_VERSION = "0.0.16"
+  @@CONFIGBOT_VERSION = "0.0.17"
   def self.CONFIGBOT_VERSION; @@CONFIGBOT_VERSION; end
 
   # Given a connection to a jabber server, handle messages as they come in
