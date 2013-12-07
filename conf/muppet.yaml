@@ -1,0 +1,49 @@
+auth:
+ jid: muppetbot@bots.uahirise.org
+ password: AnotherPassword
+ resource: hostname
+ server: jabs.uahirise.org
+ pidfile: muppetbot.pid
+
+acls:
+
+ # Allow moderators from hostbots
+ - special: hostbotsMUC
+   acl:
+     - special: muc_moderator
+     - muc: hostbots@conference.uahirise.org
+
+ # Allow moderators from hostbots-dev
+ - special: hostbotsDevMUC
+   acl:
+     - special: muc_moderator
+     - muc: hostbots-dev@conference.uahirise.org
+
+ # Allow moderators from hostbots-dev or hostbots
+ - special: adminMUC
+   acl:
+     - anyof:
+       - special: hostbotsMUC
+       - special: hostbotsDevMUC
+
+cmds:
+
+ # Allow version to be run in any muc context
+ - cmd: version
+   allow:
+    - special: muc
+
+ # Allow whereis to be run in any admin muc context
+ - cmd: whereis
+   allow:
+    - special: adminMUC
+
+ # Allow whereis to be run in any admin muc context
+ - cmd: skynet
+   allow:
+    - special: adminMUC
+
+include:
+ - path: conf.local/room.yaml
+ - path: conf.local/muppet_cmd_acls.yaml
+

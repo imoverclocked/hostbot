@@ -55,7 +55,6 @@ module HiBot
     # When we don't know what to say, say this
     def unrecognizedResponse( text )
       print "Unrecognized Response: #{text}"
-      #say("Unrecognized Command: Did you forget 'run'?")
     end
   end
 
@@ -97,8 +96,12 @@ module HiBot
 
     # When we don't know what to say, don't say anything
     def unrecognizedResponse( text )
-      say ("Command not found.  Did you forget 'run'?")
-      #p "Unrecognized Response: #{text}"
+      # This is evil, don't ever respond ... makes a bad infinite loop
+      # between bots that are talking to each other. They keep telling
+      # each other "Command not found..." which prompts a
+      # "Command not found" response
+      ## say ("Command not found.  Did you forget 'run'?")
+      p "Unrecognized Response: #{text}"
     end
   end
 

@@ -10,17 +10,22 @@ Gem::Specification.new do |s|
   s.files = ["Rakefile",
  "bin/configbot.rb",
  "configbot.gemspec",
- "lib/configbot",
  "lib/configbot/acl.rb",
- "lib/configbot/bghandler.rb",
+ "lib/configbot/aggrhandler.rb",
  "lib/configbot/basehandler.rb",
+ "lib/configbot/bghandler.rb",
+ "lib/configbot/check_command.rb",
  "lib/configbot/commands.rb",
+ "lib/configbot/conf.rb",
+ "lib/configbot/configbot_commands.rb",
  "lib/configbot/confighandler.rb",
+ "lib/configbot/groups.rb",
+ "lib/configbot/ptyhandler.rb",
  "lib/configbot/puppet_commands.rb",
  "setup.rb",
  "test/ts_configbot.rb"]
   s.has_rdoc = false
-  s.homepage = "http://pirl.lpl.arizona.edu/"
+  s.homepage = "http://pirlwww.lpl.arizona.edu/"
   s.loaded = false
   s.name = "configbot"
   s.platform = "ruby"
@@ -31,5 +36,7 @@ Gem::Specification.new do |s|
   s.rubygems_version = "1.3.1"
   s.specification_version = 2
   s.summary = "CONFIGBOT is an XMPP/Jabber bot based on XMPP4R."
-  s.version = "0.0.1"
+  s.version = "0.0.16"
+  s.add_dependency('xmpp4r', '>=0.5')
+  s.add_dependency('file-tail', '>=1.0.10')
 end

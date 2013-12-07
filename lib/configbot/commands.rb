@@ -36,6 +36,13 @@ module BotCommands
         @@commandsByName[ newCommandName ] = newClass
       end
     end
+
+    def self.allowACL( commandName, acl )
+      # Appends to the list of allowed actions
+      cmd = @@commandsByName[ commandName ]
+      cmd.nil? and raise "No such command: #{commandName} (#{@@commandsByName.keys.sort.join(", ")})\n"
+      cmd.acl = BotCommands::ACLMatchAny.new( acl, cmd.acl )
+    end
   end
 
   class Command
@@ -134,9 +141,8 @@ module BotCommands
         end
       rescue Exception=>e
         e_string = "ACL Issues ... not continuing to run command: #{e}"
-        print e_string
         say( e_string )
-        return
+        raise e
       end
       @thread = Thread.new {
         begin
@@ -161,7 +167,7 @@ module BotCommands
 
   class BotKillCommand < Command
     self.command_name = 'bkill'
-    self.acl = BotCommands.private_acl
+    self.acl = BotCommands.none_acl
     self.short_desc = 'kill a bot process'
     self.help_text = 'bkill [-no-destroy] <id> - attempts to stop a bot process with the specified id'
     CommandList.addCommandClass( BotKillCommand )
@@ -185,7 +191,7 @@ module BotCommands
 
   class BotPSCommand < Command
     self.command_name = 'bps'
-    self.acl = BotCommands.private_acl
+    self.acl = BotCommands.none_acl
     self.short_desc = 'internal bot process listing'
     self.help_text = 'bps - lists running bot processes'
     CommandList.addCommandClass( BotPSCommand )
@@ -200,7 +206,7 @@ module BotCommands
 
   class BotShowCommand < Command
     self.command_name = 'bshow'
-    self.acl = BotCommands.private_acl
+    self.acl = BotCommands.none_acl
     self.short_desc = 'show bot internals'
     self.help_text = 'bshow <resource> - shows value of <resource> (session criteria)'
     CommandList.addCommandClass( BotShowCommand )
@@ -239,7 +245,7 @@ module BotCommands
 
   class ExitCommand < Command
     self.command_name = 'exit'
-    self.acl = BotCommands.admin_acl && BotCommands.private_acl
+    self.acl = BotCommands.none_acl
     self.short_desc = 'ask a bot to exit'
     self.help_text = 'exit - for use when the bot is mis-behaving'
     self.handlePrivately = false
@@ -255,7 +261,7 @@ module BotCommands
 
   class HelpCommand < Command
     self.command_name = 'help'
-    self.acl = BotCommands.private_acl
+    self.acl = BotCommands.none_acl
     self.short_desc = 'provides help on various commands'
     self.help_text = 'help {command} provides detailed help on a command'
     CommandList.addCommandClass( HelpCommand )
@@ -312,7 +318,7 @@ module BotCommands
 
   class IDCommand < Command
     self.command_name = 'id'
-    self.acl = BotCommands.private_acl
+    self.acl = BotCommands.none_acl
     self.short_desc = 'provides an id to track commands'
     self.help_text = 'id {number} {command} -- provides output prefixed with rid={number} for a command'
     self.handlePrivately = false
@@ -359,7 +365,7 @@ module BotCommands
 
   class IncomingFile < Command
     self.command_name = 'incomingFile'
-    self.acl = BotCommands.admin_acl
+    self.acl = BotCommands.none_acl
     self.short_desc = 'How to accept/deal with incoming files'
     self.help_text = 'this is used internally when incoming file requests are detected'
     ## Don't need to add this command as it is never called by the user
@@ -403,7 +409,7 @@ module BotCommands
 
   class PingCommand < Command
     self.command_name = 'ping'
-    self.acl = BotCommands.any_acl
+    self.acl = BotCommands.none_acl
     self.short_desc = 'respond if asked correctly'
     self.help_text = 'ping <resource> - responds if <resource> matches'
     CommandList.addCommandClass( PingCommand )
@@ -421,7 +427,7 @@ module BotCommands
 
   class VersionCommand < Command
     self.command_name = 'version'
-    self.acl = BotCommands.private_acl
+    self.acl = BotCommands.none_acl
     self.short_desc = 'respond if specified version does not match'
     self.help_text = 'version <version> - responds if <version> does not match'
     self.handlePrivately = false

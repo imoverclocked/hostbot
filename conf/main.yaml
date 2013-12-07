@@ -1,15 +1,57 @@
 auth:
- jid: hostbot@example.org
+ jid: hostbot@example.com
  password: APassword
  resource: hostname
- server: jabber.example.org
+ server: jabber.example.com
  pidfile: /var/run/hostbot.pid
- primary_muc_jid: hostbots@conference.example.org
+ primary_muc_jid: hostbots@conference.example.com
 auth_debug:
- jid: hostbot@bots.example.org
+ jid: hostbot@bots.example.com
  password: APassword
  resource: dev-client
- server: jabber.example.org
+ server: jabber.example.com
  pidfile: /var/run/configbot-dev.pid
- primary_muc_jid: hostbots-dev@conference.example.org
+ primary_muc_jid: hostbots-dev@conference.example.com
 debug: false
+acls:
+ # Allow moderators from hostbots
+ - special: hostbotsMUC
+   acl:
+     - special: muc_moderator
+     - muc: hostbots@conference.example.com
+ # Allow moderators from hostbots-dev
+ - special: hostbotsDevMUC
+   acl:
+     - special: muc_moderator
+     - muc: hostbots-dev@conference.example.com
+ # Allow moderators from hostbots-dev or hostbots
+ - special: adminMUC
+   acl:
+     - anyof:
+       - special: hostbotsMUC
+       - special: hostbotsDevMUC
+cmds:
+ # Allow version to be run in any muc context
+ - cmd: version
+   allow:
+    - special: muc
+ # Allow id to be run in any muc context
+ - cmd: id
+   allow:
+    - special: muc
+ # Allow whereis to be run in any admin muc context
+ - cmd: whereis
+   allow:
+    - special: adminMUC
+ # Allow bps to be run in any admin muc context, privately
+ - cmd: bps
+   allow:
+    - special: adminMUC
+    - special: private_muc
+join_mucs:
+ - jid: hostbots@conference.example.com
+   cmds:
+    - run: version
+include:
+ - path: conf/cmd_acls.yaml
+ - glob: conf/test-room.yaml

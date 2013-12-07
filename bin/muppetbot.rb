@@ -1,51 +1,40 @@
 #!/usr/bin/env ruby
 
-## Enable the next line for debugging and run this from the "lib" directory
-DEBUG_BOT = false
-
-if DEBUG_BOT
-  $:.insert(0, ".")
-  $:.insert(0, "lib")
-  $:.insert(0, "../lib")
-  dev_append = "-dev"
-  print "Running as a develoment bot...\n"
-else
-  dev_append = ""
-end
-
-require 'configbot/bghandler'
-require 'configbot/confighandler'
-require 'configbot/puppet_commands'
-hostname = `/bin/hostname`
-hostname.chomp!
-if hostname.match(/\./)
-  hostname = hostname.split('.')[0]
-end
-pidfile = "/var/run/muppetbot#{dev_append}.pid"
-
-if (File.exist?(pidfile))
-  pf = File.open(pidfile, "r")
-  old_pid = pf.readline
-  pf.close
-end
-pf = File.open(pidfile, "w")
-pf.puts($$)
-pf.close
-if (old_pid)
-  pn = `ps -p #{old_pid}`
-  if (pn.include?("mup"))
-  `kill -15 #{old_pid}`
+require ('optparse')
+options = {}
+optparse = OptionParser.new do|opts|
+  opts.banner = "Usage: muppetbot [options]"
+  options[:config] = '/etc/configbot/conf/muppet.yaml'
+  opts.on( '-c f', '--config=f', '--config f', 'configuration file' ) do|f|
+    options[:config] = f
+    puts "using configuration: #{f}"
+  end
+  options[:debug] = false
+  opts.on( '-d', '--debug', 'debug mode' ) do
+    options[:debug] = true
+  end
+  opts.on( '-h', '--help', 'Display this screen' ) do
+    puts opts
+    exit
   end
 end
-# The cred's we need to talk to the jabber server
-if DEBUG_BOT
-  jid      = "muppetbot@bots.uahirise.org/dev-pastor-#{hostname}"
-else
-  jid      = "muppetbot@bots.uahirise.org/pastor-#{hostname}"
+optparse.parse!
+
+dev_append = ""
+if options[:debug]
+  # Assume we are running the bot as one of:
+  #   ../bin/configbot.rb -d
+  $:.insert(0, ".")
+  #   ./bin/configbot.rb -d
+  $:.insert(0, "lib")
+  #   ./configbot.rb -d
+  $:.insert(0, "../lib")
+  print "Running as a develoment bot...\n"
 end
-password = 'AnotherPassword'
-server   = 'jabs.uahirise.org'
-muc_jid  = "hostbots#{dev_append}@conference.uahirise.org"
+
+require 'configbot/conf'
+require 'configbot/configbot_commands'
+require 'configbot/puppet_commands'
 
 module HiBot
 
@@ -58,11 +47,10 @@ module HiBot
         session.newRS(HiBot::MuppetCommandResponseHandler)
       elsif jid_type == :bot
         session.newRS(HiBot::AggregateResponseHandler)
-      elsif jid_type == :admin_muc or jid_type == :admin
-        session.newRS(HiBot::MuppetMUCResponseHandler)
       elsif jid_type == :muc
-        session.newRS(HiBot::MUCResponseHandler)
+        session.newRS(HiBot::MuppetMUCResponseHandler)
       end
+      print "Session: #{session}\n"
       return session
     end
   end
@@ -127,14 +115,9 @@ module HiBot
 ####################################
 
 end
-# How do we act on incoming messages?
-msg_handler = HiBot::MuppetHandler.new( jid, password, server, muc_jid )
-msg_handler.on_exception{begin; msg_handler.cleanup; rescue Exception => e; puts "Whoa, There was an error: #{e.message}"; ensure; Process.exit; end}
-# Stop the main thread and just process events
-begin
-  Thread.stop
-ensure
-  if (File.exist?(pidfile))
-    File.delete(pidfile)
-  end
-end
+
+conf = HiBot::BotConfig.new( options[:config], options[:debug] )
+conf.resource = conf.debug ? "dev-pastor-#{conf.resource}" : "pastor-#{conf.resource}"
+conf.pidfile
+conf.connect(HiBot::MuppetHandler)
+

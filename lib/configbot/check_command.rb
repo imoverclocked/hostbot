@@ -6,7 +6,7 @@ module BotCommands
 
   class CheckCommand < Command
     self.command_name = 'check'
-    self.acl = BotCommands.admin_acl && BotCommands.private_acl
+    self.acl = BotCommands.none_acl
     self.short_desc = 'run checks for the local system'
     self.help_text = 'check [-f] [check_name] - run a check or all checks for the local system
 
@@ -21,7 +21,7 @@ if no check_name is specified, run all checks available for local system
 
     def initialize( *args )
       super( *args )
-      @opts = {:slcheck=> true, :fix => false, :list => false, :checksDir=>"/etc/configbot/check/"}
+      @opts = {:check_type=> :default, :slcheck=> true, :fix => false, :list => false, :checksDir=>"/etc/configbot/check/"}
     end
 
     def reject(words)
@@ -63,43 +63,50 @@ if no check_name is specified, run all checks available for local system
             say (tests.chomp.join(", "))
           }
         end
-     else
-      # Run all tests if the parameter is an empty string
-      if words.length == 0
-        words.push("")
-      end
+      else
+        # Run all tests if the parameter is an empty string
+        if words.length == 0
+          words.push("")
+        end
 
-      # Get all status messages into an array
-      status = []
-      #status = words.map { |check|
-      #  check_status(check,options )
-      #}
+        # Get all status messages into an array
+        status = []
+        #status = words.map { |check|
+        #  check_status(check,options )
+        #}
 		words.each{ |check|
 		  status += check_status(check, options)
 		}
-      # ignore blank outputs
-      status.map!{ |output| 
-        if (output.class == String) 
-          output.strip
-        else
-          output
-        end 
-      }
-      status.reject! { |output|
-        output == nil or output == false or output.length == 0
-      }
-      status.each { |stat| 
+        # ignore blank outputs
+        status.map!{ |output| 
+          if (output.class == String) 
+            output.strip
+          else
+            output
+          end 
+        }
+        status.reject! { |output|
+          output == nil or output == false or output.length == 0
+        }
+        status.each { |stat| 
             if (stat.length != 0 )
                say("#{stat.chomp}\n") 
             end      
-      }
-    end
-      if (options[:slcheck])
-        @opts[:checksDir] = "/etc/configbot/slcheck/"
-        @opts[:slcheck] = false
-        sltext = text
-        sltext.slice!("--nosl")
-        self.run(sltext)
+        }
+      end
+      if (options[:check_type] == :default)
+	if(options[:slcheck])
+          @opts[:checksDir] = "/etc/configbot/slcheck/"
+          @opts[:check_type] = :slcheck
+          @opts[:slcheck] = false
+          sltext = text
+          sltext.slice!("--nosl")
+          self.run(sltext)
+        end
+        @opts[:checksDir] = "/etc/configbot/autocheck/"
+        @opts[:check_type] = :autocheck
+        @opts[:autocheck] = false
+        self.run(text)
       end
     end
 
@@ -178,9 +185,36 @@ if no check_name is specified, run all checks available for local system
 
   end
 
+  class AutoCheckCommand < CheckCommand
+    self.command_name = 'autocheck'
+    self.acl = BotCommands.none_acl
+    self.short_desc = 'Run chronic system wide checks'
+    self.help_text = 'Run chronic system wide checks'
+    self.handlePrivately = false
+    CommandList.addCommandClass(AutoCheckCommand)
+
+    def initialize( *args )
+      super(*args)
+      @opts[:checksDir] ="/etc/configbot/autocheck/"
+      @opts[:check_type] = :autocheck
+    end
+    def reject(words)
+      words.reject! {|word|
+        case word
+          when 'autocheck'
+            true
+          when '-l'
+            @opts[:list] = true
+            true
+        end
+      }
+      return words
+    end
+  end 
+
   class SLCheckCommand < CheckCommand
     self.command_name = 'slcheck'
-    self.acl = BotCommands.admin_acl && BotCommands.private_acl
+    self.acl = BotCommands.none_acl
     self.short_desc = 'Run system wide checks'
     self.help_text = 'Run system wide checks'
     self.handlePrivately = false
@@ -207,7 +241,7 @@ if no check_name is specified, run all checks available for local system
 
   class PBuildCommand < CheckCommand
     self.command_name = 'pbuild'
-    self.acl = BotCommands.admin_acl && BotCommands.private_acl
+    self.acl = BotCommands.none_acl
     self.short_desc = 'Starts up pbuild version of clubot on prefix_masters'
     self.help_text = 'pbuild - Starts up pbuild version of clubot on prefix_masters'
     CommandList.addCommandClass( PBuildCommand )
@@ -235,7 +269,7 @@ if no check_name is specified, run all checks available for local system
 
   class PrefixCommand < CheckCommand
     self.command_name = 'prefix'
-    self.acl = BotCommands.admin_acl && BotCommands.private_acl
+    self.acl = BotCommands.none_acl
     self.short_desc = 'does something with prefix ... not sure what yet'
     self.help_text = 'prefix - does something with prefix ... not sure what yet'
     CommandList.addCommandClass( PrefixCommand )

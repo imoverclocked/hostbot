@@ -79,7 +79,7 @@ module HiBot
               ret_list.push( "#{first_val}" )
             end
             first_val = current_val
-            last_val = nil
+            last_val = current_val 
           end
         }
         # Sequence not closed

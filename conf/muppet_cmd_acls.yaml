@@ -1,0 +1,144 @@
+#
+# default ACL definitions for commands
+# NB: by default, commands have no access. Each successive allow statement is
+#     appended to the list of allowed ACL definitions for a command. There is
+#     currently no way to reset the ACL in the config file.
+#
+
+acls:
+
+ # Talking to a bot through a room (possibly via a private chat)
+ - special: hostbot_muc_admin
+   acl:
+     - anyof: 
+       - muc: hostbots@conference.uahirise.org
+       - muc: hostbots-dev@conference.uahirise.org
+     - special: muc_moderator
+
+ # Direct bot communication
+ - special: admin_jid
+   acl:
+     - anyof: 
+       - jid: joep@uahirise.org
+       - jid: kfine@uahirise.org
+       - jid: terryf@uahirise.org
+       - jid: tims@uahirise.org
+
+ # Some admin entity
+ - special: admin
+   acl:
+     - anyof:
+       - special: hostbot_muc_admin
+       - special: admin_jid
+
+ # Some admin entity but not via a public conversation in a room
+ - special: admin_direct
+   acl:
+     - anyof:
+       - special: hostbot_muc_admin
+       - special: admin_jid
+     - special: direct
+
+cmds:
+ - cmd: bkill
+   allow:
+     - special: admin_direct
+
+ - cmd: bps
+   allow:
+     - special: direct
+
+ - cmd: bshow
+   allow:
+     - special: direct
+
+ - cmd: check
+   allow:
+     - special: admin_direct
+
+# muppet specific commands
+# ask/alias/missing/unalias used to be allowed by anyone... not the case anymore
+ - cmd: ask
+   allow:
+     - special: admin
+
+ - cmd: alias
+   allow:
+     - special: admin
+
+ - cmd: missing
+   allow:
+     - special: admin
+
+ - cmd: unalias
+   allow:
+     - special: admin
+
+# addbot/nodes/puppet/puppetca/retire/skynet/whereis were locked to admin previously
+
+ - cmd: addBot
+   allow:
+     - special: admin
+
+ - cmd: nodes
+   allow:
+     - special: admin
+
+ - cmd: puppet
+   allow:
+     - special: admin
+
+ - cmd: puppetca
+   allow:
+     - special: admin
+
+ - cmd: retire
+   allow:
+     - special: admin
+
+ - cmd: skynet
+   allow:
+     - special: admin
+
+ - cmd: whereis
+   allow:
+     - special: admin
+
+# Some traditional commands
+ - cmd: exit
+   allow:
+     - special: admin_direct
+
+ - cmd: help
+   allow:
+     - special: direct
+
+ - cmd: hosts
+   allow:
+     - special: any
+
+# TODO: figure out a way to resolve this
+# - cmd: incomingFile
+#   allow:
+#     - special: admin
+
+ - cmd: id
+   allow:
+     - special: direct
+
+ - cmd: ping
+   allow:
+     - special: any
+
+ - cmd: version
+   allow:
+     - special: direct
+
+ - cmd: whereis
+   allow:
+     - special: hostbot_muc_admin
+
+ - cmd: womp
+   allow:
+     - special: admin_direct
+

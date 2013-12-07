@@ -126,7 +126,8 @@ module BotCommands
           @all_nodes.push(shortname)
         end
       end
-      @all_nodes.uniq!.sort!
+      @all_nodes.uniq!
+      @all_nodes.sort!
     end
     def resolve_module()
       return Array.new
@@ -209,6 +210,7 @@ module BotCommands
       def resolve_module()
         kv_pairs = @kv_pairs
         results = @all_nodes.to_set
+        p results
         kv_pairs.split(",").each do |kv|
           key_val = kv.split("=")
           cmd = "/etc/puppet/files/display_facter.rb -p #{key_val[0]} | grep #{key_val[1]}"

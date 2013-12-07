@@ -1,7 +1,7 @@
 #
 # A background handler for events that need to happen after some period of time
 #   DelayHandler - wait for some period of time and then do something
-#     - can repeat a specified number of times. 0 means run once
+#     - can repeat a specified number of times. -1 means run forever
 #
 
 module BGHandler
@@ -30,8 +30,10 @@ module BGHandler
     end
 
     def schedule()
-      while @repeat >= 0:
-        @repeat -= 1
+      while @repeat != 0
+	if @repeat != -1
+          @repeat -= 1
+	end
         sleep( self.delayTime )
 	@thread = Thread.new { self.safe_run() }
 	@thread.join( self.delayTime )

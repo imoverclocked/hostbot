@@ -19,7 +19,7 @@ require 'configbot/bghandler'
 
 module HiBot
 
-  @@CONFIGBOT_VERSION = "0.0.14"
+  @@CONFIGBOT_VERSION = "0.0.16"
   def self.CONFIGBOT_VERSION; @@CONFIGBOT_VERSION; end
 
   # Given a connection to a jabber server, handle messages as they come in
@@ -33,21 +33,17 @@ module HiBot
     attr_reader :helpers      # A hash of helper objects
     attr_reader :sessions     # A hash of jid => session mappings
 
-    def initialize(jid, password, server, muc_jid, status = 'Wow ... nice Botty')
+    def initialize(jid, password, server, status = 'Wow ... nice Botty')
       super(jid)
       @auth_info = {}
       @auth_info[:jid] = Jabber::JID.new(jid)
       @auth_info[:password] = password
       @auth_info[:server] = server
-      @auth_info[:admin_muc_jid] = Jabber::JID.new(muc_jid)
       @status_text = status
       @mainthread = Thread.current
       @helpers = {}
       @sessions = {}
       @mucs = {}
-      # Jabber::debug = true
-      # Jabber::debug = false
-
       connect()
     end
 
@@ -81,6 +77,7 @@ module HiBot
 
       #Connect to the MUC!
       muc = HiBot::ResilientMUCClient.new(self, "#{muc_prefix}/#{muc_nick}", 10)
+      @mucs[ muc_prefix ] = muc
 
       # Get a MUC session
       session = getSession( muc_prefix, muc )
@@ -107,8 +104,10 @@ module HiBot
         # Kind of silly .. if we are ignoring time then why pass it?
 	session.handleRoom( time, nick, text ) unless time
       }
+    end
 
-      @mucs[ muc_prefix ] = muc
+    def debug(enable=true)
+      Jabber::debug = enable
     end
 
     # Gets an existing session (or creates a new one)
@@ -140,7 +139,6 @@ module HiBot
     end
 
     def init_admin_MUC()
-      connectMUC( @auth_info[:admin_muc_jid] )
       add_cap("http://jabber.org/protocol/muc")
       add_cap("http://jabber.org/protocol/muc#user")
       add_cap("http://jabber.org/protocol/muc#admin")
@@ -327,8 +325,10 @@ module HiBot
       type = @helpers[:roster].jid_type( jid )
       if ! type
         muc = @mucs[ jid.strip ]
-        if muc
-    	    if muc.role(jid.resource) == :moderator 
+        if ! muc.nil?
+          if jid.strip == jid
+            type = :muc
+    	  elsif muc.role(jid.resource) == :moderator 
             type = :admin
           else
             type = :bot
@@ -385,8 +385,6 @@ module HiBot
     end
 
     def jid_type(jid)
-      return :admin_muc if BotCommands.AdminMUC.include?( "#{jid}" )
-      return :admin     if BotCommands.AdminJID.include?( "#{jid.strip}" )
       rosterItem = self.items[ jid ]
       return :bot       if rosterItem and rosterItem.iname == "bot"
 
@@ -620,6 +618,7 @@ module HiBot
       @target_nick = target_jid.resource
       @allowed_nicks = {}
       @muc_roster = Array.new
+      newRS( HiBot::MUCResponseHandler )
     end
 
     def joinedRoom(nick)
@@ -731,7 +730,7 @@ module HiBot
     def schedule()
       while( ! @disconnect )
 	if ! self.active?()
-	  print "joining MUC again ... \n"
+	  print "joining MUC (#{@reconnectJID}) again ... \n"
 	  begin
 	    self.join( @reconnectJID )
 	  rescue Exception=>e

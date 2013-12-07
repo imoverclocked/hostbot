@@ -5,10 +5,12 @@ BotCommands::Groups.addAlias("@Darwin", "@Puppet:kernel=Darwin")
 BotCommands::Groups.addAlias("@SunOS", "@Puppet:kernel=SunOS")
 BotCommands::Groups.addAlias("@Linux", "@Puppet:kernel=Linux")
 BotCommands::Groups.addAlias("@Solaris", "@Puppet:operatingsystem=Solaris")
+BotCommands::Groups.addAlias("@Debian", "@Puppet:operatingsystem=Debian")
 BotCommands::Groups.addAlias("@SnowLeopard", "@Puppet:kernel=Darwin, macosx_productversion_major=10.6")
 BotCommands::Groups.addAlias("@Leopard", "@Puppet:kernel=Darwin, macosx_productversion_major=10.5")
 BotCommands::Groups.addAlias("@cnodes", "@Regex:regex=/cnode[0-9]*/")
 BotCommands::Groups.addAlias("@pnodes", "@Regex:regex=/pnode[0-9]*/")
+BotCommands::Groups.addAlias("@xen", "@Regex:regex=/xen-*/")
 BotCommands::Groups.addAlias("@missing", "@missing:Systems that are missing from the room")
 BotCommands::Groups.addAlias("@in_room", "@in_room:Systems that are in the room")
 BotCommands::Groups.addAlias("@hinet", "@Puppet:network_side=hinet")
@@ -17,16 +19,12 @@ BotCommands::Groups.addAlias("@pirlnet", "@Puppet:network_side=pirlnet")
 
 module BotCommands
 
-  def self.muppetadmin_acl; @@muppetadmin_acl; end
-  @@muppetadmin_acl = ACLMatchAny.new(@@admin_acl)
-  @@muppetadmin_acl.criteria.push(ACLItem.new(:or, :bot_type, :muppetbot))
-
-  def self.muppetany_acl; @@muppetany_acl; end
-  @@muppetany_acl = ACL.new(ACLItem.new(:or, :bot_type, :muppetbot))
+  def self.allowInternalMuppet; @@allowInternalMuppet_acl; end
+  @@allowInternalMuppet_acl = ACLMatchAny.new( ACLItem.new(:or, :bot_type, :muppetbot) )
 
   class AddBotCommand < Command
     self.command_name = 'addBot'
-    self.acl = BotCommands.muppetadmin_acl
+    self.acl = BotCommands.allowInternalMuppet
     self.handlePrivately = false
     self.short_desc = "Adds a bot to the roster"
     self.help_text = "addBot {jid} -- Adds a bot to the roster"
@@ -43,7 +41,7 @@ module BotCommands
 
   class AskCommand < Command
     self.command_name = 'ask'
-    self.acl = BotCommands.muppetany_acl
+    self.acl = BotCommands.allowInternalMuppet
     self.handlePrivately = false
     self.short_desc = "Asks muppetbot for information about the various nodes that it has knowledge of"
     self.help_text = "ask the puppet master about various parameters for nodes that talk to it.
@@ -59,7 +57,7 @@ ask -p parameter -n node e.g. combine the two!
 
   class UnaliasCommand < Command
     self.command_name = 'unalias'
-    self.acl = BotCommands.muppetany_acl
+    self.acl = BotCommands.allowInternalMuppet
     self.handlePrivately = false
     self.short_desc = "Remove non permanent aliases from skynet"
     self.help_text = "Remove non permanent aliases from skynet"
@@ -80,7 +78,7 @@ ask -p parameter -n node e.g. combine the two!
   end
   class AliasCommand < Command
     self.command_name = 'alias'
-    self.acl = BotCommands.muppetany_acl
+    self.acl = BotCommands.allowInternalMuppet
     self.handlePrivately = false
     self.short_desc = "Define or display aliases for skynet"
     self.help_text = "Define or display aliases for skynet:
@@ -115,13 +113,13 @@ further examples can be gleaned from running alias without arguments"
             say("Alias: #{aliases[0]} already exists and is permanent")
           else
             nodes = Groups.resolve(@session, aliases[1])
-            if (nodes.kind_of?(Array) and nodes != [])
+            if (nodes.kind_of?(Array))
               BotCommands::Groups.addAlias(aliases[0], aliases[1], false)
               nodes = Groups.resolve(@session, aliases[0]) 
               short_nodes = HiBot::AggregatorHelpers.node_shorthand_ranges( nodes )
               say("(#{aliases[0]}): #{short_nodes}")
             else 
-              say("Alias: #{aliases[0]}=#{aliases[1]} results in an empty alias, so not added")
+              say("Alias: #{aliases[0]}=#{aliases[1]} failed, so not added")
             end
           end
         end
@@ -131,7 +129,7 @@ further examples can be gleaned from running alias without arguments"
 
   class NodesCommand < Command
     self.command_name = 'nodes'
-    self.acl = BotCommands.muppetadmin_acl
+    self.acl = BotCommands.allowInternalMuppet
     self.handlePrivately = false
     self.short_desc = "show all/groups of nodes"
     self.help_text = "Lists nodes that are known to the bot.
@@ -162,7 +160,7 @@ Using the data stored by facter and the room roster of the MUC displays nodes wh
 
   class PuppetCommand < Command
     self.command_name = 'puppet'
-    self.acl = BotCommands.muppetadmin_acl
+    self.acl = BotCommands.allowInternalMuppet
     self.short_desc = "A jabber interface for configuring nodes in puppet"
     self.help_text = "Modifies the node heirarchy for puppet.  
 puppet -l       #list all possible definitions 
@@ -180,7 +178,7 @@ puppet -d node defintion    #delete [definition] from [node]
   class WhereisCommand < Command
     self.command_name = 'whereis'
     self.handlePrivately = false
-    self.acl = BotCommands.muppetadmin_acl
+    self.acl = BotCommands.allowInternalMuppet
     self.short_desc = "looks through a list of puppet resources to find matching values"
     self.help_text = "looks through a list of puppet resources to find matching values"
     CommandList.addCommandClass(WhereisCommand)
@@ -230,17 +228,18 @@ puppet -d node defintion    #delete [definition] from [node]
   end
   class PuppetCACommand < Command
     self.command_name = 'puppetca'
-         self.acl = BotCommands.muppetadmin_acl
+         self.acl = BotCommands.allowInternalMuppet
          self.short_desc = "Interaction with puppet certificate authority."
          self.help_text = "Interaction with puppet certificate authority."
          CommandList.addCommandClass(PuppetCACommand)
          def run (text)
-           say(`#{text}`)  
+	   command = "puppet cert " + text.split(' ')[1..-1].join(' ')
+           say(`#{command}`)  
          end
   end
   class RetireCommand < Command
     self.command_name = 'retire'
-    self.acl = BotCommands.muppetadmin_acl
+    self.acl = BotCommands.allowInternalMuppet
     self.short_desc = "Retire systems no longer in use"
     self.help_text = "USAGE:  retire [name] -- To retire a system\nretire -u [name] --To unretire a system"
     CommandList.addCommandClass(RetireCommand)
@@ -250,6 +249,7 @@ puppet -d node defintion    #delete [definition] from [node]
             args.shift
         if (args[0] and args[0].length > 0 and args[0][0,1] != "." and args[0][0,1] != "/" and args[0] != "-u")
            `mv #{dir}#{args[0]}* #{dir}/retired`
+					  `if which puppetca &> /dev/null; then puppetca --list --all | grep ^+ | grep #{args[0]} | awk '{print $2}' | while read LINE; do puppetca --clean $LINE; done fi`
         elsif (args[1].length > 0 and args[0] == "-u" and args[1][0,1] != "." and args[1][0,1] != "/")
            `mv #{dir}/retired/#{args[1]}* #{dir}`
         else
@@ -262,7 +262,7 @@ puppet -d node defintion    #delete [definition] from [node]
   class MissingCommand < Command
     self.command_name = 'missing'
     self.handlePrivately = false
-    self.acl = BotCommands.muppetany_acl
+    self.acl = BotCommands.allowInternalMuppet
     self.short_desc = "Displays missing nodes! -- deprecated"
     self.help_text = "see the 'nodes' command for extended usage:
 nodes @missing"
@@ -278,7 +278,7 @@ nodes @missing"
     @@skynet_maps = { 'womp' => :womp, 'check' => :check }
     self.command_name = 'skynet'
     self.handlePrivately = false
-    self.acl = BotCommands.muppetadmin_acl
+    self.acl = BotCommands.allowInternalMuppet
     self.short_desc = "Sends a command privately to all logged in nodes"
     self.help_text = "skynet [--nps=N] -- <command>
 sends a command to all logged in nodes and attempts to aggregate similar outputs
@@ -376,6 +376,7 @@ will return.
 	      bot_list.delete_if{|x| !nodes.include?(x.split("/").pop.downcase) }
   		end
 
+      # Figure out what to send to the bot (map maps a command)
       remote_command = command[0]
       map_fn = @@skynet_maps[ remote_command ]
       if map_fn

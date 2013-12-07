@@ -20,12 +20,28 @@ module BotCommands
       return ACLMatchAny.new( self, otherACL )
     end
 
+    def to_s
+      to_str
+    end
+
+    def to_str
+      begin
+        "ACL( " + @criteria.map{ |a| a.to_str }.join(", ") + ")"
+      rescue Exception => e
+	raise "ACL--BAD--( " + @criteria.map{ |a| a.respond_to?(:to_str) and a.to_str or a.inspect }.join(", ") + ") -- #{e.backtrace}"
+      end
+    end
+
     # Given an Array of ACLItems
     def initialize( *criteria )
       if criteria.kind_of?(Array)
         @criteria = criteria
+	# ensure that all parameters are ACL objects
+	criteria.each { |acl| acl.is_a?(BotCommands::ACL) or acl.is_a?(BotCommands::ACLItem) or raise "bad ACL parameters: (#{acl}) #{acl.inspect}" }
       else
         @criteria = [ criteria ]
+	# ensure that the parameter is an ACL object
+	criteria.is_a?(BotCommands::ACL) or criteria.is_a?(BotCommands::ACLItem) or raise "bad ACL parameter: #{criteria.inspect}"
       end
     end
 
@@ -66,6 +82,14 @@ module BotCommands
   end
 
   class ACLMatchAny < ACL
+
+    def to_str
+      begin
+        "ACLMatchAny( " + @criteria.map{ |a| a.to_str }.join(", ") + ")"
+      rescue Exception => e
+	raise "ACLMatchAny--BAD--( " + @criteria.map{ |a| a.respond_to?(:to_str) and a.to_str or a.inspect }.join(", ") + ") -- #{e.backtrace}"
+      end
+    end
 
     # Given all criteria, does this ACL pass?
     def can?( criteria )
@@ -110,12 +134,16 @@ module BotCommands
       @logic_mappings[ logic_type ] = method
     end
 
-    def to_s()
+    def to_s
       av = @allowed_values
       if av.kind_of?(Array)
         av = av.join( ", " )
       end
       "ACLItem( #{@logic_method}, #{@keyword}, [ #{av} ] )"
+    end
+
+    def to_str
+      to_s
     end
 
     def initialize( logic_type, keyword, allowed_values = nil )
@@ -126,7 +154,7 @@ module BotCommands
         :nand => :logic_nand,
         :nor => :logic_nor
       }
-      @logic_method = self.method(@logic_mappings[ logic_type ] )
+      @logic_method = self.method(@logic_mappings[ logic_type ])
       @keyword = keyword
 
       # Allowed Values should always be an array
@@ -210,6 +238,50 @@ module BotCommands
   ###################################################
   # pre-defined ACLs for ease of command definition #
   ###################################################
+
+  # Match anything
+  def self.any_acl; @@any_acl; end
+  @@any_acl = ACL.new()
+
+  # Match nothing
+  def self.none_acl; @@none_acl; end
+  @@none_acl = ACLMatchAny.new()
+
+  # Private MUC chat?
+  def self.private_muc_acl; @@private_muc_acl; end
+  @@private_muc_acl = ACL.new(
+    ACLItem.new(:or, :session_type, :muc_private)
+  )
+
+  # public MUC chat?
+  def self.public_muc_acl; @@public_muc_acl; end
+  @@public_muc_acl = ACL.new(
+    ACLItem.new(:or, :session_type, :muc)
+  )
+
+  # any kind of MUC chat?
+  def self.muc_acl; @@muc_acl; end
+  @@muc_acl = ACLMatchAny.new(
+    public_muc_acl,
+    private_muc_acl
+  )
+
+  # muc chat with a moderator?
+  def self.muc_moderator_acl; @@muc_moderator_acl; end
+  @@muc_moderator_acl = ACL.new(
+    muc_acl,
+    ACLItem.new(:or, :user_role, :moderator)
+  )
+
+  # direct chat? (directly between two entities or private through a room)
+  def self.direct_acl; @@direct_acl; end
+  @@direct_acl = ACL.new( NegativeACLItem.new( :or, :session_type, :muc ) )
+
+  # private jid chat? (no room involved)
+  def self.private_jid_acl; @@private_jid_acl; end
+  @@private_jid_acl = ACL.new(ACLItem.new(:or, :session_type, :private))
+
+  # TODO: deprecate and stop using this
   def self.admin_acl; @@admin_acl; end
   @@admin_acl = ACLMatchAny.new(
     # Listen to Administrative JIDs
@@ -218,20 +290,91 @@ module BotCommands
     ACL.new(
       ACLItem.new(:or, :jid, BotCommands.AdminMUC),
       ACLItem.new(:or, :session_type, :muc_private),
-      ACLItem.new(:or, :user_role, :moderator)
+      muc_moderator_acl
     ),
     # Listen to room moderators in the room
     ACL.new(
       ACLItem.new(:or, :jid, BotCommands.AdminMUC),
       ACLItem.new(:or, :session_type, :muc),
-      ACLItem.new(:or, :user_role, :moderator)
+      muc_moderator_acl
     )
   )
 
-  def self.any_acl; @@any_acl; end
-  @@any_acl = ACL.new()
+  class ACLCreator
 
-  def self.private_acl; @@private_acl; end
-  @@private_acl = ACL.new( NegativeACLItem.new( :or, :session_type, :muc ) )
+    @@specialACL = {
+      'any' => BotCommands.any_acl,
+      'none' => BotCommands.none_acl,
+      'public_muc' => BotCommands.public_muc_acl,
+      'private_muc' => BotCommands.private_muc_acl,
+      'private_jid' => BotCommands.private_jid_acl,
+      'direct' => BotCommands.direct_acl,
+      'muc_moderator' => BotCommands.muc_moderator_acl,
+      'muc' => BotCommands.muc_acl,
+    }
+
+    def self.special( name, newACL = nil )
+      if newACL != nil
+	if @@specialACL.has_key?(name)
+          raise "#{name} already defined as an ACL"
+	end
+	@@specialACL[name] = newACL
+      end
+      @@specialACL[name].nil? and raise "Undefined special acl name: #{name}"
+      @@specialACL[name]
+    end
+
+    def self.muc( name )
+      stripped_name = Jabber::JID.new(name).strip.to_s
+      ACL.new(
+        ACLItem.new(:or, :jid, stripped_name ),
+        BotCommands.muc_acl
+      )
+    end
+
+    def self.jid( name )
+      stripped_name = Jabber::JID.new(name).strip.to_s
+      ACL.new(
+        ACLItem.new(:or, :jid, stripped_name ),
+        @@specialACL['private_jid']
+      )
+    end
+
+    @@type_mappings = {
+      'special' => :special,
+      'muc' => :muc,
+      'jid' => :jid,
+      'anyof' => :anyof,
+    }
+
+    def self.anyof( subACLs )
+      acls = Array.new
+      # print "subACLS: #{subACLs.inspect}\n"
+      subACLs.each { |aclElem|
+        aclElem.keys.each { |k|
+	  m = self.method(@@type_mappings[ k ])
+          acls.push(m.call(aclElem[k]))
+	}
+      }
+      newACL = ACLMatchAny.new( *acls )
+      newACL
+    end
+
+    # Assumes everything from the "acl:" tree is passed
+    def self.mapFromYAML( yamlData )
+      acls = Array.new
+      yamlData.each { |aclElem|
+        aclElem.keys.each { |k|
+          m = self.method(@@type_mappings[ k ])
+          acls.push(m.call(aclElem[k]))
+	}
+      }
+      # print "yamlData: #{yamlData.inspect}\n"
+      # print "acls: #{acls.inspect}\n"
+      newACL = ACL.new( *acls )
+      newACL
+    end
+
+  end
 
 end

@@ -1,0 +1,26 @@
+acls:
+ - special: allowTestbots
+   acl:
+     - muc: testbots@conference.example.com
+cmds:
+ - cmd: bps
+   allow:
+    - special: allowTestbots
+ - cmd: check
+   allow:
+    - special: allowTestbots
+ - cmd: help
+   allow:
+    - special: allowTestbots
+ - cmd: ping
+   allow:
+    - special: allowTestbots
+ - cmd: womp
+   allow:
+    - special: allowTestbots
+join_mucs:
+ - jid: testbots@conference.example.com
+   cmds:
+    - run: check
+include:
+ - glob: conf/rooms/*.yaml

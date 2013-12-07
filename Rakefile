@@ -15,7 +15,7 @@ PKG_NAME      = 'configbot'
 PKG_VERSION   = HiBot::CONFIGBOT_VERSION
 AUTHORS       = ['Tim Spriggs', 'Kenny Fine']
 EMAIL         = "sys@pirl.lpl.arizona.edu"
-HOMEPAGE      = "http://pirl.lpl.arizona.edu/"
+HOMEPAGE      = "http://pirlwww.lpl.arizona.edu/"
 SUMMARY       = "CONFIGBOT is an XMPP/Jabber bot based on XMPP4R."
 
 # These are the common rdoc options that are shared between generation of
@@ -27,7 +27,7 @@ RDOC_OPTIONS  = [
                 "--quiet",
                 "--title", SUMMARY,
                 "--opname", "index.html",
-                "--main", "bin/configbot.rb",
+                "--main", "sbin/configbot.rb",
                 "--line-numbers",
                 "--inline-source"
                 ]
@@ -38,7 +38,7 @@ RDOC_OPTIONS  = [
 # The full file list used for rdocs, tarballs, gems, and for generating the configbot.gemspec.
 # PKG_FILES     = (%w( Rakefile setup.rb configbot.gemspec ) + RDOC_FILES + Dir["{lib,test,data,tools}/**/*"]).sort
 #PKG_FILES     = (%w( Rakefile setup.rb configbot.gemspec ) + Dir["{configbot,test}/**/*"]).sort
-PKG_FILES     = (%w( Rakefile setup.rb configbot.gemspec ) + Dir["{lib,test,bin}/**/*"]).sort
+PKG_FILES     = (%w( Rakefile setup.rb configbot.gemspec ) + Dir["{lib,test,sbin}/**/*"]).sort
 ##############################################################################
 # DEFAULT TASK
 ##############################################################################
