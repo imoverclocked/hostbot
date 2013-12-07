@@ -1,9 +1,9 @@
 auth:
- jid: muppetbot@bots.uahirise.org
- password: AnotherPassword
+ jid: servicebot@bots.example.com
+ password: SomePassw0rd
  resource: hostname
- server: jabs.uahirise.org
- pidfile: muppetbot.pid
+ server: jabber.example.com
+ pidfile: servicebot.pid
 
 acls:
 
@@ -11,13 +11,13 @@ acls:
  - special: hostbotsMUC
    acl:
      - special: muc_moderator
-     - muc: hostbots@conference.uahirise.org
+     - muc: hostbots@conference.example.com
 
  # Allow moderators from hostbots-dev
  - special: hostbotsDevMUC
    acl:
      - special: muc_moderator
-     - muc: hostbots-dev@conference.uahirise.org
+     - muc: hostbots-dev@conference.example.com
 
  # Allow moderators from hostbots-dev or hostbots
  - special: adminMUC
@@ -33,17 +33,7 @@ cmds:
    allow:
     - special: muc
 
- # Allow whereis to be run in any admin muc context
- - cmd: whereis
-   allow:
-    - special: adminMUC
-
- # Allow whereis to be run in any admin muc context
- - cmd: skynet
-   allow:
-    - special: adminMUC
-
 include:
- - path: conf/room.yaml
- - path: conf/muppet_cmd_acls.yaml
+ - path: conf/service/room.yaml
+ - path: conf/service/cmd_acls.yaml
 

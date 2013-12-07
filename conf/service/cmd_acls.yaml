@@ -1,0 +1,73 @@
+#
+# default ACL definitions for commands
+# NB: by default, commands have no access. Each successive allow statement is
+#     appended to the list of allowed ACL definitions for a command. There is
+#     currently no way to reset the ACL in the config file.
+#
+
+acls:
+
+ # Talking to a bot through a room (possibly via a private chat)
+ - special: hostbot_muc_admin
+   acl:
+     - anyof: 
+       - muc: hostbots@conference.example.com
+       - muc: hostbots-dev@conference.example.com
+     - special: muc_moderator
+
+ # Direct bot communication
+ - special: admin_jid
+   acl:
+     - anyof: 
+       - jid: admin1@example.com
+       - jid: admin2@example.com
+       - jid: admin3@example.com
+       - jid: admin4@example.com
+
+ # Some admin entity
+ - special: admin
+   acl:
+     - anyof:
+       - special: hostbot_muc_admin
+       - special: admin_jid
+
+ # Some admin entity but not via a public conversation in a room
+ - special: admin_direct
+   acl:
+     - anyof:
+       - special: hostbot_muc_admin
+       - special: admin_jid
+     - special: direct
+
+cmds:
+ - cmd: bkill
+   allow:
+     - special: admin_direct
+
+ - cmd: bps
+   allow:
+     - special: direct
+
+ - cmd: bshow
+   allow:
+     - special: direct
+
+ - cmd: exit
+   allow:
+     - special: admin_direct
+
+ - cmd: help
+   allow:
+     - special: direct
+
+ - cmd: id
+   allow:
+     - special: direct
+
+ - cmd: ping
+   allow:
+     - special: any
+
+ - cmd: version
+   allow:
+     - special: direct

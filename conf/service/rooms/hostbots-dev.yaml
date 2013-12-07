@@ -1,0 +1,19 @@
+acls:
+ - special: hostbots
+   acl:
+     - anyof:
+       - muc: hostbots@conference.example.com
+       - muc: hostbots-dev@conference.example.com
+
+# cmds: section is not needed as the default acls work for the hostbots room
+cmds:
+ - cmd: service list
+   allow: 
+    - special: hostbots
+
+join_mucs:
+ - jid: hostbots-dev@conference.example.com
+   cmds:
+    - run: version
+    - run: service
+

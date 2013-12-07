@@ -1,0 +1,7 @@
+cmds:
+ - cmd: version
+   allow: 
+    - special: any
+
+include:
+ - glob: conf/service/rooms/*.yaml
