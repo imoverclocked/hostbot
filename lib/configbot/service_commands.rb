@@ -30,15 +30,25 @@ module ServiceTests
     def initialize(session)
       @base_services = Array.new()
       @session = session
+      @run = true
+      @delay = 5
+      @test_thread = Thread.new {
+        while @run
+          run()
+          sleep( @delay )
+        end
+      }
     end
 
     def addDir(dir)
-      base_services << MetaService(dir)
+      @base_services << MetaService.new(dir)
     end
 
     def run()
       res = @base_services.collect { |svc| svc.run() }
-      res.flatten.each { |result| @session.say(result) }
+      res.flatten.each { |result|
+        @session.say("#{result.service.name} failed: #{result.text}")
+      }
     end
 
     def list()
@@ -65,8 +75,10 @@ module ServiceTests
       # to those tests (eg test/)
       tests.each { |t|
         newSvc = addService(t).fetch(-1)
-        t[".svc"] = ""
-        sub_tests = dirs.select { |d| d = t }
+        sub_svc = t.split(".")
+        sub_svc.pop
+	sub_svc = sub_svc.join(".")
+	sub_tests = dirs.select { |d| d = sub_svc }
         sub_tests.each { |d|
           newSvc.addMetaService(d)
           dirs.delete_if { |td| td = d }
@@ -77,11 +89,15 @@ module ServiceTests
     end
 
     def addService(test)
-      @subService << Service(test)
+      @subService << Service.new(test)
     end
 
     def addMetaService(test)
-      @subService << MetaService(test)
+      @subService << MetaService.new(test)
+    end
+
+    def list()
+      @subService.collect { |test| test.list }
     end
 
     def run()
@@ -90,16 +106,45 @@ module ServiceTests
   end
 
   class Service < MetaService
+    attr_reader :failed
+    attr_reader :last_failed
+
     def initialize(file)
       testname = file.split("/").pop
       testname[".svc"] = ""
       super(file, testname)
+      @failed = false
+      @last_failed = nil
+    end
+
+    def list()
+      super() << self
     end
 
     def run()
-      res = super()
-      res << "OMG: #{@dir} #{@name}"
-      return res
+      out = `#{@dir}`
+      if $? == 0
+        @failed = false
+        return super()
+      end
+      if ! @failed
+        @failed = true
+        @last_failed = Time.new()
+        return FailedResult.new(self, out)
+      end
+      return []
+    end
+  end
+
+  # We don't care about passed tests in this context ... only failed tests
+
+  class FailedResult
+    attr_reader :service
+    attr_reader :text
+
+    def initialize(service, text)
+      @service = service
+      @text = text
     end
   end
 
@@ -143,8 +188,13 @@ module BotCommands
       sub_cmd = command.shift
 
       sc = @session.session_data['ServiceContainer']
-      svcs = sc.list.collect { |svc| svc.name }
-      say("list of services:\n" + svcs.join("\n"))
+      svcs = sc.list.collect {
+        |svc|
+          svc.failed ?
+            "#{svc.dir} / #{svc.name} *** FAILED ***" :
+            "#{svc.dir} / #{svc.name}"
+      }
+      say("list of services:\n" + svcs.sort.join("\n"))
     end
   end
 

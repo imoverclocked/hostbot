@@ -1,0 +1,14 @@
+#!/bin/bash
+
+CHECK_URL=http://web-diag.lpl.arizona.edu/web1/web1.png
+
+die() {
+  status=$1; shift
+  echo "$@"
+  exit $status
+}
+
+curl -fs $CHECK_URL -o /dev/null
+STATUS=$?
+
+[ $STATUS = 0 ] || die $STATUS A backend web server is experiencing issues: $CHECK_URL

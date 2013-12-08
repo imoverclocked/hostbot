@@ -1,0 +1,14 @@
+#!/bin/bash
+
+CHECK_URL=http://web-diag.lpl.arizona.edu/
+
+die() {
+  status=$1; shift
+  echo "$@"
+  exit $status
+}
+
+curl -fs $CHECK_URL -o /dev/null
+STATUS=$?
+
+[ $STATUS = 0 ] || die $STATUS The proxy server is experiencing issues. Some web services may be affected.
