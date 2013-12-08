@@ -542,14 +542,15 @@ module HiBot
     attr_reader :client
     attr_reader :target_jid
     attr_reader :discovery
-    # alias :real_extend :extend
-    # hash of nicks that we don't ignore
+    # A way of keeping state per-session
+    attr_accessor :session_data
 
     def initialize(client, target_jid)
       @client = client
       @discovery = Jabber::Discovery::Helper.new(@client)
       @target_jid = target_jid
       @resp = ResponseHandler.new( @client, self )
+      @session_data = Hash.new()
     end
 
     def handle( text )

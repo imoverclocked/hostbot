@@ -163,8 +163,13 @@ module BotCommands
   # This class is used for commands with sub-commands (eg: service ... )
 
   class MetaCommand < Command
+    # Useful for initialization of common elements of sub-commands
+    # NB: may be called many times (and many times for each @session)
+    def init(text)
+    end
 
     def exec(text, wait = false)
+      init(text)
       command = self.class.command_name
       text[command] = ""
       (sub_command, text) = text.split(" ",2)
