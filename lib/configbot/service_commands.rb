@@ -211,7 +211,7 @@ service add /path/to/dir/"
       cmd = command.shift
       sub_cmd = command.shift
 
-      @session.session_data['ServiceContainer'].addDir(command)
+      @session.session_data['ServiceContainer'].addDir(command.join)
     end
   end
 

@@ -145,12 +145,18 @@ module HiBot
         jid = Jabber::JID.new( muc['jid'] )
         @msg_handler.connectMUC( jid )
         muc_session = @msg_handler.getSession( jid )
-        muc['cmds'].nil? or muc['cmds'].each { |cmd|
-          if cmd['run']
-            print "running #{cmd['run'].inspect} in #{jid}\n"
-            muc_session.handle(cmd['run'])
-          end
-        }
+        if ! muc['cmds'].nil?
+	  while muc_session.muc.jid.nil?
+	    # wait for muc_session to become ready...
+	    # otherwise we get an exception whenwe try and run a command too quickly.
+	  end
+	  muc['cmds'].each { |cmd|
+            if cmd['run']
+              print "running #{cmd['run'].inspect} in #{jid}\n"
+              muc_session.handle(cmd['run'])
+            end
+          }
+        end
       }
     end
 
