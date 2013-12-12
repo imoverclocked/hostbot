@@ -43,9 +43,9 @@ module HiBot
       session = super( jid, muc )
       jid_type = session.jid_type( jid )
       print "new session/response handler for #{jid} -- #{jid.strip} (#{jid_type})\n"
-      if BotCommands.AdminJID.include?( "#{jid.strip}" )
-        session.newRS(HiBot::MuppetCommandResponseHandler)
-      elsif jid_type == :bot
+      #if BotCommands.AdminJID.include?( "#{jid.strip}" )
+      #  session.newRS(HiBot::MuppetCommandResponseHandler)
+      if jid_type == :bot
         session.newRS(HiBot::AggregateResponseHandler)
       elsif jid_type == :muc
         session.newRS(HiBot::MuppetMUCResponseHandler)
