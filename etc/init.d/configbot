@@ -10,7 +10,7 @@
 ### END INIT INFO
 
 PATH=/sbin:/usr/sbin:/bin:/usr/bin
-DESC="xmmp bot for interacting with systems"
+DESC="xmpp bot for interacting with systems"
 NAME=configbot
 DAEMON=/usr/sbin/configbot.rb
 DAEMON_ARGS=""
